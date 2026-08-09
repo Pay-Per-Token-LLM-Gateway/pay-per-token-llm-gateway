@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "x402-sdk"
+version = "0.1.0"
+description = "Python SDK for x402 LLM Gateway 402 payment flows"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "x402 LLM Gateway contributors" }]
+dependencies = ["requests>=2.31.0"]
+
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.2.0"]
+stellar = ["stellar-sdk>=12.0.0"]
+dev = ["pytest>=8.0.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/x402_sdk"]
+
