@@ -38,6 +38,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install curl for health checks
+RUN apk add --no-cache curl
+
 # Copy standalone server with bundled dependencies
 COPY --from=builder /app/dist/apps/dashboard/.next/standalone /app
 
@@ -48,5 +51,8 @@ COPY --from=builder /app/dist/apps/dashboard/.next/static /app/.next/static
 COPY --from=builder /app/dist/apps/dashboard/public /app/public
 
 EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:3001 || exit 1
 
 CMD ["node", "server.js"]
