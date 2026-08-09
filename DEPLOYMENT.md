@@ -218,3 +218,119 @@ The gateway verifies the payment on-chain and proxies to the LLM:
               │ (Railway)│ │ (Railway)│ │ Testnet  │
               └──────────┘ └──────────┘ └──────────┘
 ```
+
+
+---
+
+## Part 5: Mainnet Deployment
+
+> ⚠ **WARNING**: Mainnet operates with REAL USDC. Test thoroughly on testnet first.
+> A single misconfiguration can cost real money. Review each step carefully.
+
+### 5.1 Prerequisites
+
+Before deploying to mainnet, ensure you have:
+
+- **Stellar mainnet account** funded with real XLM (for transaction fees) and USDC
+- **Circle USDC issuer on mainnet**: `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`
+- **Soroban mainnet contracts** deployed (see [5.5 Deploy Contracts](#55-deploy-contracts))
+- **Production-grade PostgreSQL and Redis** (Railway, AWS RDS, Upstash, or ElastiCache)
+- **HTTPS certificate** for the gateway (Railway provides this automatically)
+- **JWT_SECRET** generated with `openssl rand -base64 32`
+
+### 5.2 Environment Variables for Mainnet
+
+| Variable | Value |
+|---|---|
+| `STELLAR_NETWORK` | `mainnet` |
+| `HORIZON_URL` | `https://horizon.stellar.org` |
+| `SOROBAN_RPC_URL` | `https://soroban-mainnet.stellar.org` |
+| `USDC_ISSUER` | `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN` |
+| `NODE_ENV` | `production` |
+| `JWT_SECRET` | (Generate: `openssl rand -base64 32`) |
+
+A complete `.env.mainnet.example` is provided in the repository — copy it and fill in your values.
+
+### 5.3 Docker Compose (Mainnet)
+
+Use the dedicated mainnet Docker Compose file:
+
+```bash
+docker compose -f infrastructure/docker/docker-compose.mainnet.yml up -d
+```
+
+This file requires the following environment variables (set them in a `.env` file or shell):
+
+```bash
+POSTGRES_PASSWORD=<strong-random-password>
+REDIS_PASSWORD=<strong-random-password>
+JWT_SECRET=<openssl rand -base64 32>
+CORS_ORIGINS=https://your-dashboard.vercel.app
+```
+
+### 5.4 Railway Deployment (Mainnet)
+
+1. Follow [Part 1](#part-1-deploy-gateway-to-railway) to set up PostgreSQL and Redis
+2. Under **Settings → Environment**, set the mainnet variables from the table above
+3. Set `STELLAR_NETWORK=mainnet` and the mainnet `USDC_ISSUER`
+4. **Security hardening**:
+   - Use Railway's `${{Postgres.DATABASE_URL}}` references (never hardcode credentials)
+   - Set `JWT_SECRET` as a Railway secret (not in the repo)
+   - Enable Railway's private networking for inter-service communication
+   - Set `CORS_ORIGINS` to your exact dashboard URL (no wildcards)
+
+### 5.5 Deploy Contracts to Mainnet
+
+The Soroban contracts must be deployed to Stellar mainnet before the gateway can use them:
+
+```bash
+# Set up your mainnet identity
+stellar config --network mainnet
+stellar accounts create --source MAINNET_ACCOUNT_ID
+
+# Deploy payment-verifier (requires mainnet XLM for fees)
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/payment_verifier.wasm \
+  --source MAINNET_ACCOUNT_ID \
+  --network mainnet
+
+# Deploy credit-escrow
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/credit_escrow.wasm \
+  --source MAINNET_ACCOUNT_ID \
+  --network mainnet
+
+# Deploy multisig
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/multisig.wasm \
+  --source MAINNET_ACCOUNT_ID \
+  --network mainnet
+```
+
+After deployment, update the contract addresses in your environment variables:
+
+```bash
+PAYMENT_VERIFIER_CONTRACT=<deployed-address>
+CREDIT_ESCROW_CONTRACT=<deployed-address>
+MULTISIG_CONTRACT=<deployed-address>
+```
+
+### 5.6 Security Considerations
+
+| Concern | Mitigation |
+|---|---|
+| **Real USDC at risk** | Test thoroughly on testnet first. Start with minimum payment amounts. |
+| **Secret key exposure** | Use a dedicated mainnet account with minimal balance. Never commit secrets to the repo. |
+| **Rate limiting** | Mainnet has lower Soroban RPC rate limits. Monitor gateway logs. |
+| **Contract upgrades** | Soroban contracts are immutable once deployed. Use a proxy pattern for upgradability. |
+| **Monitoring** | Set up alerts for verification failures, anomalous payment patterns, and gateway health. |
+| **Audit trail** | Every payment is recorded on-chain. Maintain a separate off-chain ledger for reconciliation. |
+
+### 5.7 Testing Mainnet
+
+Before going live, run these checks:
+
+1. **Payment flow**: Execute a small-value request through the mainnet gateway and verify the full 402 → pay → retry cycle
+2. **Contract integration**: Verify the credit-escrow contract reads/writes balances correctly
+3. **Dashboard**: Confirm the provider dashboard shows real-time mainnet data
+4. **Failover**: Test that the gateway falls back gracefully when Horizon or Soroban RPC is unavailable
