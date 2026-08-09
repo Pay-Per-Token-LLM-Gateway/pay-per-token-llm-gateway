@@ -61,7 +61,7 @@ export default function DashboardPage() {
           <p className="text-red-400">Failed to load analytics: {(error as Error).message}</p>
           <p className="text-muted-foreground text-sm mt-2">
             Make sure the gateway is running at{' '}
-            <code className="bg-gray-800 px-1 rounded">{GATEWAY_URL}</code>
+            <code className="bg-muted px-1 rounded">{GATEWAY_URL}</code>
           </p>
         </div>
       </div>
@@ -144,15 +144,15 @@ export default function DashboardPage() {
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
-              <YAxis stroke="#6b7280" fontSize={12} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
+              <XAxis dataKey="name" stroke="hsl(var(--chart-axis))" fontSize={12} />
+              <YAxis stroke="hsl(var(--chart-axis))" fontSize={12} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#111827',
-                  border: '1px solid #1f2937',
+                  backgroundColor: 'hsl(var(--chart-tooltip-bg))',
+                  border: '1px solid hsl(var(--chart-tooltip-border))',
                   borderRadius: '8px',
-                  color: '#f9fafb',
+                  color: 'hsl(var(--chart-tooltip-text))',
                 }}
               />
               <Line

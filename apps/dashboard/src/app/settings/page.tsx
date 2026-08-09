@@ -119,7 +119,7 @@ export default function SettingsPage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
               placeholder="My LLM Provider"
               required
             />
@@ -132,7 +132,7 @@ export default function SettingsPage() {
               type="text"
               value={walletAddress}
               onChange={(e) => setWalletAddress(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
               placeholder="G..."
               required
               pattern="^G[A-Z2-7]{55}$"
@@ -147,7 +147,7 @@ export default function SettingsPage() {
               type="text"
               value={payoutWalletAddress}
               onChange={(e) => setPayoutWalletAddress(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
               placeholder="G..."
               pattern="^(G[A-Z2-7]{55})?$"
               title="Enter a valid Stellar wallet address starting with G, or leave empty"
@@ -173,7 +173,7 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold mb-2">Connection Details</h2>
           <div className="text-sm text-muted-foreground space-y-1">
             <p>
-              Provider ID: <code className="bg-gray-800 px-1 rounded text-xs">{provider.id}</code>
+              Provider ID: <code className="bg-muted px-1 rounded text-xs">{provider.id}</code>
             </p>
             <p>
               Status:{' '}
