@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Trash2, Power, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Power, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import {
   useProvider,
@@ -10,6 +10,9 @@ import {
   useDeleteRoute,
 } from '@/lib/hooks';
 import type { RouteResponse } from '@/lib/api';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
+import { ErrorState } from '@/components/error/ErrorState';
+import { TableSkeleton } from '@/components/loading/Skeleton';
 
 export default function RoutesPage() {
   const [showAdd, setShowAdd] = useState(false);
@@ -29,160 +32,118 @@ export default function RoutesPage() {
     deleteMutation.mutate(id);
   };
 
-  if (isError) {
-    return (
+  const mutationError =
+    (deleteMutation.error as Error)?.message || (updateMutation.error as Error)?.message;
+
+  return (
+    <ErrorBoundary resetKey="routes">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Routes</h1>
             <p className="text-muted-foreground mt-1">Manage protected LLM endpoints and pricing</p>
           </div>
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" /> Add Route
+          </button>
         </div>
-        <div className="card border-red-800/30 bg-red-950/10">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-medium text-red-400">Failed to load routes</h3>
-              <p className="text-sm text-muted-foreground mt-1">{(error as Error).message}</p>
-              <button
-                onClick={() => refetch()}
-                className="inline-flex items-center gap-1.5 mt-2 text-sm text-green-400 hover:text-green-300 transition-colors"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Retry
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
-  const mutationError =
-    (deleteMutation.error as Error)?.message || (updateMutation.error as Error)?.message;
-
-  const routeList = routes ?? [];
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Routes</h1>
-          <p className="text-muted-foreground mt-1">Manage protected LLM endpoints and pricing</p>
-        </div>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" /> Add Route
-        </button>
-      </div>
-
-      {/* Mutation errors */}
-      {mutationError && (
-        <div className="card border-red-800/30 bg-red-950/10">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-medium text-red-400">Operation failed</h3>
-              <p className="text-sm text-muted-foreground mt-1">{mutationError}</p>
+        {/* Mutation errors */}
+        {mutationError && (
+          <div className="card border-red-800/30 bg-red-950/10">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
+                <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-medium text-red-400">Operation failed</h3>
+                <p className="text-sm text-muted-foreground mt-1">{mutationError}</p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Add Route Form */}
-      {showAdd && (
-        <AddRouteForm onCreated={() => setShowAdd(false)} onCancel={() => setShowAdd(false)} />
-      )}
-
-      <div className="card overflow-hidden">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading routes...</p>
-          </div>
-        ) : routeList.length === 0 ? (
-          <p className="text-muted-foreground text-sm py-8 text-center">
-            No routes configured. Add your first route.
-          </p>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">
-                  Path
-                </th>
-                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">
-                  Model
-                </th>
-                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">
-                  Pricing
-                </th>
-                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">
-                  Price
-                </th>
-                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">
-                  Status
-                </th>
-                <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {routeList.map((route) => (
-                <tr
-                  key={route.id}
-                  className="border-b border-border last:border-0 hover:bg-gray-800/30 transition-colors"
-                >
-                  <td className="py-3 px-4 font-mono text-sm">{route.path}</td>
-                  <td className="py-3 px-4 text-sm">{route.model}</td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`badge ${route.pricingModel === 'flat' ? 'badge-blue' : 'badge-green'}`}
-                    >
-                      {route.pricingModel === 'flat' ? 'Flat' : 'Per Token'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-sm font-mono">
-                    {route.pricingModel === 'flat' ? route.flatPrice : route.perTokenPrice}{' '}
-                    {route.acceptedAssets?.[0] ?? 'USDC'}
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className={`badge ${route.active ? 'badge-green' : 'badge-red'}`}>
-                      {route.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleToggleActive(route)}
-                        disabled={updateMutation.isPending}
-                        className="p-1.5 hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
-                        title={route.active ? 'Deactivate' : 'Activate'}
-                      >
-                        <Power className="w-4 h-4" />
-                      </button>
-                      <button
-                        className="p-1.5 hover:bg-red-900/30 rounded transition-colors text-red-400 disabled:opacity-50"
-                        disabled={deleteMutation.isPending}
-                        onClick={() => handleDelete(route.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         )}
+
+        {/* Add Route Form */}
+        {showAdd && (
+          <AddRouteForm onCreated={() => setShowAdd(false)} onCancel={() => setShowAdd(false)} />
+        )}
+
+        <div className="card overflow-hidden">
+          {isError ? (
+            <div className="p-4">
+              <ErrorState error={error} onRetry={() => refetch()} />
+            </div>
+          ) : isLoading ? (
+            <TableSkeleton rows={3} cols={5} />
+          ) : routes && routes.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-8 text-center">
+              No routes configured. Add your first route.
+            </p>
+          ) : routes ? (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Path</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Model</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Pricing</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Price</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Status</th>
+                  <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {routes.map((route) => (
+                  <tr
+                    key={route.id}
+                    className="border-b border-border last:border-0 hover:bg-gray-800/30 transition-colors"
+                  >
+                    <td className="py-3 px-4 font-mono text-sm">{route.path}</td>
+                    <td className="py-3 px-4 text-sm">{route.model}</td>
+                    <td className="py-3 px-4">
+                      <span className={`badge ${route.pricingModel === 'flat' ? 'badge-blue' : 'badge-green'}`}>
+                        {route.pricingModel === 'flat' ? 'Flat' : 'Per Token'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-sm font-mono">
+                      {route.pricingModel === 'flat' ? route.flatPrice : route.perTokenPrice} {route.acceptedAssets?.[0] ?? 'USDC'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`badge ${route.active ? 'badge-green' : 'badge-red'}`}>
+                        {route.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleToggleActive(route)}
+                          disabled={updateMutation.isPending}
+                          className="p-1.5 hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                          title={route.active ? 'Deactivate' : 'Activate'}
+                        >
+                          <Power className="w-4 h-4" />
+                        </button>
+                        <button
+                          className="p-1.5 hover:bg-red-900/30 rounded transition-colors text-red-400 disabled:opacity-50"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => handleDelete(route.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 
@@ -237,9 +198,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
     return (
       <div className="card">
         <p className="text-red-400 text-sm">Failed to load provider.</p>
-        <button onClick={onCancel} className="mt-2 text-sm text-green-400 hover:underline">
-          Go back
-        </button>
+        <button onClick={onCancel} className="mt-2 text-sm text-green-400 hover:underline">Go back</button>
       </div>
     );
   }
@@ -249,40 +208,18 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
       <div className="card">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-yellow-900/20 rounded-lg shrink-0 mt-0.5">
-            <svg
-              className="w-5 h-5 text-yellow-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-              />
+            <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
           </div>
           <div>
             <h3 className="font-medium text-yellow-400">No Provider Configured</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              You need to set up your provider profile before creating routes.
-            </p>
-            <a
-              href="/settings"
-              className="inline-block mt-2 text-sm text-green-400 hover:underline"
-            >
-              Go to Settings →
-            </a>
+            <p className="text-sm text-muted-foreground mt-1">You need to set up your provider profile before creating routes.</p>
+            <a href="/settings" className="inline-block mt-2 text-sm text-green-400 hover:underline">Go to Settings →</a>
           </div>
         </div>
         <div className="mt-4">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            Cancel
-          </button>
+          <button onClick={onCancel} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-800 transition-colors">Cancel</button>
         </div>
       </div>
     );
@@ -291,23 +228,16 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
   return (
     <div className="card">
       <h2 className="text-lg font-semibold mb-4">Add New Route</h2>
-
-      {/* Provider context badge */}
       <div className="flex items-center gap-2 mb-4 p-3 bg-gray-900/50 rounded-lg border border-border">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center shrink-0">
-          <span className="text-white font-bold text-xs">
-            {provider.name.charAt(0).toUpperCase()}
-          </span>
+          <span className="text-white font-bold text-xs">{provider.name.charAt(0).toUpperCase()}</span>
         </div>
         <div className="min-w-0">
           <p className="text-sm font-medium truncate">{provider.name}</p>
-          <p className="text-xs text-muted-foreground font-mono truncate">
-            {provider.id.slice(0, 12)}...
-          </p>
+          <p className="text-xs text-muted-foreground font-mono truncate">{provider.id.slice(0, 12)}...</p>
         </div>
         <span className="badge badge-green text-xs ml-auto shrink-0">Active</span>
       </div>
-
       {formError && <p className="text-red-400 text-sm mb-3">{formError}</p>}
       {createMutation.isError && !formError && (
         <p className="text-red-400 text-sm mb-3">{(createMutation.error as Error).message}</p>
@@ -315,111 +245,50 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label className="block text-sm mb-1">Path</label>
-          <input
-            name="path"
-            required
-            className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
-            placeholder="/v1/chat/completions"
-          />
+          <input name="path" required className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50" placeholder="/v1/chat/completions" />
         </div>
         <div>
           <label className="block text-sm mb-1">Upstream URL</label>
-          <input
-            name="upstreamUrl"
-            required
-            className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
-            placeholder="https://api.openai.com/v1/chat/completions"
-          />
+          <input name="upstreamUrl" required className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50" placeholder="https://api.openai.com/v1/chat/completions" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm mb-1">Model</label>
-            <input
-              name="model"
-              required
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
-              placeholder="gpt-4"
-            />
+            <input name="model" required className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50" placeholder="gpt-4" />
           </div>
           <div>
             <label className="block text-sm mb-1">Pricing Model</label>
-            <select
-              name="pricingModel"
-              value={pricingModel}
-              onChange={(e) => setPricingModel(e.target.value as 'flat' | 'per_token')}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
-            >
+            <select name="pricingModel" value={pricingModel} onChange={(e) => setPricingModel(e.target.value as 'flat' | 'per_token')} className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50">
               <option value="flat">Flat</option>
               <option value="per_token">Per Token</option>
             </select>
           </div>
         </div>
-
-        {/* Price fields — show/hide based on pricing model */}
         <div className="space-y-3 transition-all duration-200">
           {pricingModel === 'flat' && (
             <div>
-              <label className="block text-sm mb-1">
-                Flat Price{' '}
-                <span className="text-xs text-muted-foreground">
-                  (smallest unit, e.g. 1000000 = 0.1 USDC)
-                </span>
-              </label>
+              <label className="block text-sm mb-1">Flat Price <span className="text-xs text-muted-foreground">(smallest unit, e.g. 1000000 = 0.1 USDC)</span></label>
               <div className="relative">
-                <input
-                  name="flatPrice"
-                  required
-                  className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                  placeholder="1000000"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  stroops
-                </span>
+                <input name="flatPrice" required className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50" placeholder="1000000" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">stroops</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Charged once per request regardless of token usage
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Charged once per request regardless of token usage</p>
             </div>
           )}
-
           {pricingModel === 'per_token' && (
             <div>
-              <label className="block text-sm mb-1">
-                Per-Token Price{' '}
-                <span className="text-xs text-muted-foreground">
-                  (smallest unit, e.g. 100 = 0.00001 USDC per token)
-                </span>
-              </label>
+              <label className="block text-sm mb-1">Per-Token Price <span className="text-xs text-muted-foreground">(smallest unit, e.g. 100 = 0.00001 USDC per token)</span></label>
               <div className="relative">
-                <input
-                  name="perTokenPrice"
-                  required
-                  className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                  placeholder="100"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  stroops/token
-                </span>
+                <input name="perTokenPrice" required className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50" placeholder="100" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">stroops/token</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Charged per token — total cost = tokens used × this rate
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Charged per token — total cost = tokens used × this rate</p>
             </div>
           )}
         </div>
         <div className="flex gap-2 justify-end">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={createMutation.isPending}
-            className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
-          >
+          <button type="button" onClick={onCancel} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-800 transition-colors">Cancel</button>
+          <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50">
             {createMutation.isPending ? 'Saving...' : 'Create Route'}
           </button>
         </div>

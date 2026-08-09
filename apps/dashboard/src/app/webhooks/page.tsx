@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { sendWebhookTest } from '@/lib/api';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 const SUPPORTED_EVENTS = ['payment_received', 'request_forwarded', 'verification_failed'] as const;
 
@@ -71,7 +72,8 @@ export default function WebhooksPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary resetKey="webhooks">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Webhooks</h1>
@@ -217,6 +219,7 @@ export default function WebhooksPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
