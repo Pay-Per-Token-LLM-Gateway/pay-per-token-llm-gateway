@@ -1,11 +1,14 @@
 'use client';
 
-import { Settings, Save, Loader2, AlertTriangle } from 'lucide-react';
+import { Settings, Save, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useProvider, useSaveProvider } from '@/lib/hooks';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
+import { ErrorState } from '@/components/error/ErrorState';
+import { CardSkeleton } from '@/components/loading/Skeleton';
 
 export default function SettingsPage() {
-  const { data: provider, isLoading, isError, error } = useProvider();
+  const { data: provider, isLoading, isError, error, refetch } = useProvider();
   const saveMutation = useSaveProvider();
 
   const [name, setName] = useState('');
@@ -44,147 +47,122 @@ export default function SettingsPage() {
     );
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <p className="text-muted-foreground mt-1">
-            Configure your provider profile and gateway preferences
-          </p>
-        </div>
-        <div className="card max-w-2xl">
-          <div className="flex items-center gap-3 py-4">
-            <Loader2 className="w-5 h-5 text-green-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading provider settings...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <p className="text-muted-foreground mt-1">
-            Configure your provider profile and gateway preferences
-          </p>
-        </div>
-        <div className="card max-w-2xl border-red-800/30 bg-red-950/10">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
-            </div>
-            <div>
-              <h3 className="font-medium text-red-400">Failed to load settings</h3>
-              <p className="text-sm text-muted-foreground mt-1">{(error as Error).message}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Configure your provider profile and gateway preferences
-        </p>
-      </div>
-
-      {saveMutation.isError && (
-        <div className="card max-w-2xl border-red-800/50">
-          <p className="text-red-400 text-sm">{(saveMutation.error as Error).message}</p>
+    <ErrorBoundary resetKey="settings">
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Settings</h1>
+          <p className="text-muted-foreground mt-1">
+            Configure your provider profile and gateway preferences
+          </p>
         </div>
-      )}
 
-      {success && (
-        <div className="card max-w-2xl border-green-800/50">
-          <p className="text-green-400 text-sm">✓ Settings saved successfully</p>
-        </div>
-      )}
-
-      <div className="card max-w-2xl">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Settings className="w-5 h-5" /> Provider Profile
-        </h2>
-        <form onSubmit={handleSave} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Provider Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
-              placeholder="My LLM Provider"
-              required
+        {isError ? (
+          <div className="max-w-2xl">
+            <ErrorState
+              error={error}
+              onRetry={() => refetch()}
+              title="Failed to load settings"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Payment Wallet Address (Stellar)
-            </label>
-            <input
-              type="text"
-              value={walletAddress}
-              onChange={(e) => setWalletAddress(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
-              placeholder="G..."
-              required
-              pattern="^G[A-Z2-7]{55}$"
-              title="Enter a valid Stellar wallet address starting with G"
-            />
+        ) : isLoading ? (
+          <div className="max-w-2xl">
+            <CardSkeleton />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Payout Wallet Address (optional, for multisig)
-            </label>
-            <input
-              type="text"
-              value={payoutWalletAddress}
-              onChange={(e) => setPayoutWalletAddress(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
-              placeholder="G..."
-              pattern="^(G[A-Z2-7]{55})?$"
-              title="Enter a valid Stellar wallet address starting with G, or leave empty"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={saveMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
-          >
-            {saveMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
+        ) : (
+          <>
+            {saveMutation.isError && (
+              <div className="card max-w-2xl border-red-800/50">
+                <p className="text-red-400 text-sm">{(saveMutation.error as Error).message}</p>
+              </div>
             )}
-            {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
-          </button>
-        </form>
-      </div>
 
-      {provider && (
-        <div className="card max-w-2xl">
-          <h2 className="text-lg font-semibold mb-2">Connection Details</h2>
-          <div className="text-sm text-muted-foreground space-y-1">
-            <p>
-              Provider ID: <code className="bg-gray-800 px-1 rounded text-xs">{provider.id}</code>
-            </p>
-            <p>
-              Status:{' '}
-              <span className={`badge ${provider.active ? 'badge-green' : 'badge-red'}`}>
-                {provider.active ? 'Active' : 'Inactive'}
-              </span>
-            </p>
-            <p>Created: {new Date(provider.createdAt).toLocaleString()}</p>
-          </div>
-        </div>
-      )}
-    </div>
+            {success && (
+              <div className="card max-w-2xl border-green-800/50">
+                <p className="text-green-400 text-sm">✓ Settings saved successfully</p>
+              </div>
+            )}
+
+            <div className="card max-w-2xl">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Settings className="w-5 h-5" /> Provider Profile
+              </h2>
+              <form onSubmit={handleSave} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Provider Name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                    placeholder="My LLM Provider"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Payment Wallet Address (Stellar)
+                  </label>
+                  <input
+                    type="text"
+                    value={walletAddress}
+                    onChange={(e) => setWalletAddress(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                    placeholder="G..."
+                    required
+                    pattern="^G[A-Z2-7]{55}$"
+                    title="Enter a valid Stellar wallet address starting with G"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Payout Wallet Address (optional, for multisig)
+                  </label>
+                  <input
+                    type="text"
+                    value={payoutWalletAddress}
+                    onChange={(e) => setPayoutWalletAddress(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                    placeholder="G..."
+                    pattern="^(G[A-Z2-7]{55})?$"
+                    title="Enter a valid Stellar wallet address starting with G, or leave empty"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={saveMutation.isPending}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  {saveMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
+                </button>
+              </form>
+            </div>
+
+            {provider && (
+              <div className="card max-w-2xl">
+                <h2 className="text-lg font-semibold mb-2">Connection Details</h2>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>
+                    Provider ID: <code className="bg-gray-800 px-1 rounded text-xs">{provider.id}</code>
+                  </p>
+                  <p>
+                    Status:{' '}
+                    <span className={`badge ${provider.active ? 'badge-green' : 'badge-red'}`}>
+                      {provider.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </p>
+                  <p>Created: {new Date(provider.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }

@@ -49,17 +49,53 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    // Network-level failure (offline, DNS, CORS, gateway down)
+    throw new GatewayError(
+      'Network error',
+      0,
+      'Unable to reach the gateway. Check that it is running and that your connection is available.',
+      err instanceof Error ? err : undefined,
+    );
+  }
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Gateway error ${res.status}: ${body}`);
+    const body = await res.text().catch(() => '');
+    const message = body || `Gateway error ${res.status}`;
+    throw new GatewayError(`Gateway error ${res.status}`, res.status, message);
   }
 
   return res.json();
+}
+
+/**
+ * Structured error thrown by the gateway API client.
+ * Carries an HTTP status code (0 for network-level failures) so the UI can
+ * render targeted, user-friendly messages for 401 / 500 / connectivity issues.
+ */
+export class GatewayError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number, hint?: string, cause?: Error) {
+    super(message);
+    this.name = 'GatewayError';
+    this.status = status;
+    if (hint) {
+      this.hint = hint;
+    }
+    if (cause) {
+      this.cause = cause;
+    }
+  }
+
+  /** A human-readable, user-facing hint for the failure. */
+  hint?: string;
 }
 
 // ── Auth ────────────────────────────────────
