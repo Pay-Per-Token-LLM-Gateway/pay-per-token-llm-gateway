@@ -4,6 +4,14 @@
   "sourceRoot": "packages/wallet/src",
   "projectType": "library",
   "targets": {
-    "lint": { "executor": "@nx/eslint:lint" }
+    "lint": { "executor": "@nx/eslint:lint" },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/packages/wallet"],
+      "options": {
+        "jestConfig": "packages/wallet/jest.config.ts",
+        "passWithNoTests": true
+      }
+    }
   }
 }
