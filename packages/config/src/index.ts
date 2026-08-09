@@ -4,6 +4,15 @@
 
 import type { StellarNetwork, PaymentAsset } from '@x402/types';
 
+/** Circle USDC issuer on Stellar testnet */
+const TESTNET_USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
+/** Circle USDC issuer on Stellar mainnet */
+const MAINNET_USDC_ISSUER = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+
+/** Futurenet USDC issuer (same as testnet for sandbox purposes) */
+const FUTURENET_USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
 export interface ContractAddresses {
   /** Payment verifier contract ID */
   paymentVerifier: string;
@@ -152,22 +161,25 @@ export function loadConfig(): GatewayConfig {
 
   const networkConfigs: Record<
     StellarNetwork,
-    { horizon: string; rpc: string; passphrase: string }
+    { horizon: string; rpc: string; passphrase: string; usdcIssuer: string }
   > = {
     testnet: {
       horizon: 'https://horizon-testnet.stellar.org',
       rpc: 'https://soroban-testnet.stellar.org',
       passphrase: 'Test SDF Network ; September 2015',
+      usdcIssuer: TESTNET_USDC_ISSUER,
     },
     mainnet: {
       horizon: 'https://horizon.stellar.org',
       rpc: 'https://soroban-mainnet.stellar.org',
       passphrase: 'Public Global Stellar Network ; September 2015',
+      usdcIssuer: MAINNET_USDC_ISSUER,
     },
     futurenet: {
       horizon: 'https://horizon-futurenet.stellar.org',
       rpc: 'https://rpc-futurenet.stellar.org',
       passphrase: 'Test SDF Future Network ; October 2022',
+      usdcIssuer: FUTURENET_USDC_ISSUER,
     },
   };
 
@@ -203,7 +215,7 @@ export function loadConfig(): GatewayConfig {
     payment: {
       defaultAsset: 'USDC',
       usdcIssuer:
-        process.env.USDC_ISSUER || 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+        process.env.USDC_ISSUER || networkConfigs[network].usdcIssuer,
       quoteExpirySeconds: parseInt(process.env.QUOTE_EXPIRY_SECONDS || '300', 10),
       minPaymentAmount: process.env.MIN_PAYMENT_AMOUNT || '10000', // 0.00001 XLM in stroops
       contractAdminSecret: process.env.CONTRACT_ADMIN_SECRET || undefined,
