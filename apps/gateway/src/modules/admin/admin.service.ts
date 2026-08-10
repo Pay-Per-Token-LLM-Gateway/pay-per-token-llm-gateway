@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { prisma } from '@x402/database';
+import { LoadBalancerService } from '../load-balancer/load-balancer.service';
 
 @Injectable()
 export class AdminService {
+  constructor(private readonly loadBalancerService: LoadBalancerService) {}
+
   async getHealth() {
     return {
       status: 'ok' as const,
@@ -73,5 +76,40 @@ export class AdminService {
   }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await prisma.auditLog.create({ data: data as any });
+  }
+
+  /**
+   * Get load balancer health status for all active routes.
+   */
+  async getLoadBalancerHealth(): Promise<Record<string, unknown>[]> {
+    const routes = await prisma.route.findMany({
+      where: { active: true },
+      include: { provider: { select: { active: true, name: true } } },
+    });
+
+    const lbEntries = routes
+      .filter((r) => r.provider.active)
+      .map((r) => ({
+        route: {
+          id: r.id,
+          providerId: r.providerId,
+          path: r.path,
+          upstreamUrl: r.upstreamUrl,
+          model: r.model,
+          pricingModel: r.pricingModel,
+          flatPrice: r.flatPrice ?? undefined,
+          perTokenPrice: r.perTokenPrice ?? undefined,
+          acceptedAssets: r.acceptedAssets,
+          rateLimit: r.rateLimit,
+          active: r.active,
+          createdAt: r.createdAt.toISOString(),
+          updatedAt: r.updatedAt.toISOString(),
+        },
+        weight: r.weight ?? 1,
+      }));
+
+    return this.loadBalancerService.getHealthStatus(
+      lbEntries as Parameters<LoadBalancerService['getHealthStatus']>[0],
+    ) as unknown as Record<string, unknown>[];
   }
 }

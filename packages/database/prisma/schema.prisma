@@ -44,6 +44,7 @@ model Route {
   acceptedAssets String[] @default(["USDC"])
   rateLimit      Int      @default(10)
   active         Boolean  @default(true)
+  weight         Int      @default(1) // load-balancing weight (higher = more traffic)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -8,6 +8,7 @@ import { PaymentsModule } from '../payments/payments.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { AdminModule } from '../admin/admin.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
+import { LoadBalancerModule } from '../load-balancer/load-balancer.module';
 import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @Module({
@@ -19,6 +20,7 @@ import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
     AnalyticsModule,
     AdminModule,
     WebhooksModule,
+    LoadBalancerModule,
   ],
   controllers: [ProxyController],
   providers: [ProxyService, RateLimitGuard],

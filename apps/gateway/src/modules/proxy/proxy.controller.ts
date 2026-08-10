@@ -17,6 +17,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AdminService } from '../admin/admin.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { LoadBalancerService } from '../load-balancer/load-balancer.service';
 import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 import { chatCompletionRequestSchema } from '@x402/validation';
 import { calculatePrice, comparePayment } from '@x402/x402-core';
@@ -36,6 +37,7 @@ export class ProxyController {
     private readonly analyticsService: AnalyticsService,
     private readonly adminService: AdminService,
     private readonly webhooksService: WebhooksService,
+    private readonly loadBalancerService: LoadBalancerService,
   ) {}
 
   /**
@@ -69,16 +71,40 @@ export class ProxyController {
       const body = parseResult.data;
       const model = body.model;
 
-      // 2. Look up route — strip global prefix from req.path for matching
+      // 2. Look up routes — strip global prefix from req.path for matching
       const routePath = req.path.replace(/^\/api\/v1/, '') || req.path;
-      const route = await this.routesService.findByPathAndModel(routePath, model);
-      if (!route) {
+
+      // Find all active routes for this model. If multiple providers offer
+      // the same model, use the load balancer to select the best upstream.
+      const allRoutes = await this.routesService.findAllByPathAndModel(routePath, model);
+      if (allRoutes.length === 0) {
         return res.status(404).json({
           status: 404,
           error: 'Not Found',
           message: `No route configured for model: ${model}`,
         });
       }
+
+      // Select the best route using the load balancer
+      const lbEntries = allRoutes.map((r) => ({
+        route: r,
+        weight: (r as RouteConfig & { weight?: number }).weight ?? 1,
+      }));
+      const selected = lbEntries.length > 1
+        ? this.loadBalancerService.selectRoute(lbEntries)
+        : lbEntries[0];
+
+      if (!selected) {
+        logger.warn('Load balancer: all upstreams unhealthy for model', { model });
+        return res.status(503).json({
+          status: 503,
+          error: 'Service Unavailable',
+          message: 'All upstream providers are currently unavailable',
+        });
+      }
+
+      const route = selected.route;
+      const lbStrategy = (req.headers['x-lb-strategy'] as string) || 'round-robin';
 
       // 3. Check for payment header
       const txHash = req.headers['x-payment-hash'] as string | undefined;
@@ -122,6 +148,11 @@ export class ProxyController {
       );
     } catch (error) {
       logger.error('Proxy error', { traceId, error: String(error) });
+
+      // Record load balancing failure for upstream errors
+      if (`${error}`.includes('Upstream') || `${error}`.includes('Circuit breaker')) {
+        this.loadBalancerService.recordResult(route.id, false);
+      }
 
       if (error instanceof BadRequestException) {
         return res.status(400).json({
@@ -329,6 +360,9 @@ export class ProxyController {
       async (totalTokens) => {
         const streamDuration = Date.now() - startTime;
 
+        this.loadBalancerService.recordLatency(route.id, streamDuration);
+        this.loadBalancerService.recordResult(route.id, true);
+
         // Calculate actual cost for per-token pricing
         const costResult = await this.applyMeteredPricing(
           route,
@@ -385,6 +419,10 @@ export class ProxyController {
       apiKey,
       traceId,
     );
+
+    // Record latency and success for load balancing
+    this.loadBalancerService.recordLatency(route.id, responseTime);
+    this.loadBalancerService.recordResult(route.id, true);
 
     // Calculate actual cost for per-token pricing
     const tokensUsed = response.usage?.total_tokens;
