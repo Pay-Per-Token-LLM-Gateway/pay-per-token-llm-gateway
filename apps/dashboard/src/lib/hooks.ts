@@ -19,6 +19,10 @@ import {
   type TimeSeriesPoint,
   type PaginatedPayments,
   type PaginatedAuditLogs,
+  fetchEscrowBalance,
+  fetchEscrowUsage,
+  type EscrowBalanceResponse,
+  type EscrowUsageResponse,
 } from './api';
 
 // ── Query Key Factory ────────────────────────
@@ -30,6 +34,8 @@ export const queryKeys = {
     ['payments', params] as const,
   routes: (providerId?: string) => ['routes', providerId] as const,
   auditLogs: (params?: { page?: number; limit?: number }) => ['auditLogs', params] as const,
+  escrowBalance: ['escrow', 'balance'] as const,
+  escrowUsage: ['escrow', 'usage'] as const,
 };
 
 // ── Provider ──────────────────────────────────
@@ -42,6 +48,24 @@ export function useProvider() {
       return providers.length > 0 ? providers[0] : null;
     },
     staleTime: 5 * 60_000, // 5 minutes — provider config rarely changes
+  });
+}
+
+export function useEscrowBalance() {
+  return useQuery<EscrowBalanceResponse>({
+    queryKey: queryKeys.escrowBalance,
+    queryFn: fetchEscrowBalance,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useEscrowUsage() {
+  return useQuery<EscrowUsageResponse>({
+    queryKey: queryKeys.escrowUsage,
+    queryFn: fetchEscrowUsage,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 }
 
