@@ -59,4 +59,3 @@ contracts/*/test_snapshots/
 # Cache
 .cache/
 .turbo/
-infrastructure/k8s/base/secret.env
