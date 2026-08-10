@@ -37,16 +37,7 @@ spec:
             - name: POSTGRES_USER
               value: x402
             - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: x402-secrets
-                  key: DATABASE_URL
-                  optional: true
-            # fallback for dev — replace via secret in prod
-          envFrom:
-            - secretRef:
-                name: x402-secrets
-                optional: true
+              value: "x402_dev_password"
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data

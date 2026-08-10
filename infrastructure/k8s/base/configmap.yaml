@@ -12,4 +12,4 @@ data:
   SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org"
   USDC_ISSUER: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
   REDIS_URL: "redis://redis:6379"
-  DATABASE_URL: "postgresql://x402:changeme@postgres:5432/x402_gateway"
+  CORS_ORIGINS: "http://localhost:3001,https://x402-dashboard.vercel.app"
