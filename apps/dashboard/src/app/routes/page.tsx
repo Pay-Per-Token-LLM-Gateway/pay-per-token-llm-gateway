@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Trash2, Power, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Power, Loader2, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import { useState } from 'react';
 import {
   useProvider,
@@ -8,14 +8,17 @@ import {
   useCreateRoute,
   useUpdateRoute,
   useDeleteRoute,
+  useLoadBalancerHealth,
 } from '@/lib/hooks';
-import type { RouteResponse } from '@/lib/api';
+import type { LoadBalancerRouteHealth, RouteResponse } from '@/lib/api';
 
 export default function RoutesPage() {
   const [showAdd, setShowAdd] = useState(false);
   const { data: routes, isLoading, isError, error, refetch } = useRoutes();
+  const { data: loadBalancerHealth } = useLoadBalancerHealth();
   const deleteMutation = useDeleteRoute();
   const updateMutation = useUpdateRoute();
+  const healthByRoute = new Map((loadBalancerHealth ?? []).map((item) => [item.routeId, item]));
 
   const handleToggleActive = (route: RouteResponse) => {
     updateMutation.mutate({
@@ -126,6 +129,9 @@ export default function RoutesPage() {
                   Price
                 </th>
                 <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">
+                  Upstreams
+                </th>
+                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">
                   Status
                 </th>
                 <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4">
@@ -151,6 +157,9 @@ export default function RoutesPage() {
                   <td className="py-3 px-4 text-sm font-mono">
                     {route.pricingModel === 'flat' ? route.flatPrice : route.perTokenPrice}{' '}
                     {route.acceptedAssets?.[0] ?? 'USDC'}
+                  </td>
+                  <td className="py-3 px-4 text-sm">
+                    <UpstreamStatus route={route} health={healthByRoute.get(route.id)} />
                   </td>
                   <td className="py-3 px-4">
                     <span className={`badge ${route.active ? 'badge-green' : 'badge-red'}`}>
@@ -186,11 +195,42 @@ export default function RoutesPage() {
   );
 }
 
+function UpstreamStatus({
+  route,
+  health,
+}: {
+  route: RouteResponse;
+  health?: LoadBalancerRouteHealth;
+}) {
+  const configuredCount = route.loadBalancing?.upstreams.length ?? 1;
+  if (!route.loadBalancing) {
+    return <span className="text-muted-foreground font-mono text-xs">1 primary</span>;
+  }
+
+  const openCount = health?.upstreams.filter((upstream) => upstream.circuitOpen).length ?? 0;
+  const strategy =
+    route.loadBalancing.strategy === 'least_latency' ? 'least latency' : 'round robin';
+
+  return (
+    <div className="flex items-center gap-2">
+      <Activity className={`w-4 h-4 ${openCount > 0 ? 'text-yellow-400' : 'text-green-400'}`} />
+      <div className="leading-tight">
+        <p className="text-xs font-medium">
+          {configuredCount} upstreams
+          {openCount > 0 && <span className="text-yellow-400"> - {openCount} open</span>}
+        </p>
+        <p className="text-[11px] text-muted-foreground">{strategy}</p>
+      </div>
+    </div>
+  );
+}
+
 function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
   const { data: provider, isLoading: providerLoading, isError: providerError } = useProvider();
   const createMutation = useCreateRoute();
   const [formError, setFormError] = useState<string | null>(null);
   const [pricingModel, setPricingModel] = useState<'flat' | 'per_token'>('flat');
+  const [loadBalancingEnabled, setLoadBalancingEnabled] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -202,12 +242,39 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
     setFormError(null);
     const form = e.currentTarget;
     const formData = new FormData(form);
+    const upstreamUrl = formData.get('upstreamUrl') as string;
+    const extraUpstreams = String(formData.get('upstreams') || '')
+      .split('\n')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const weight = Number(formData.get('weight') || 1);
+    const failureThreshold = Number(formData.get('failureThreshold') || 5);
+    const cooldownMs = Number(formData.get('cooldownMs') || 30000);
+    if (loadBalancingEnabled && extraUpstreams.length === 0) {
+      setFormError('Add at least one additional upstream URL to enable load balancing.');
+      return;
+    }
 
     createMutation.mutate(
       {
         providerId: provider.id,
         path: formData.get('path') as string,
-        upstreamUrl: formData.get('upstreamUrl') as string,
+        upstreamUrl,
+        ...(loadBalancingEnabled && {
+          loadBalancing: {
+            strategy: formData.get('strategy') as 'round_robin' | 'least_latency',
+            upstreams: [
+              { url: upstreamUrl, name: 'primary', weight },
+              ...extraUpstreams.map((url, index) => ({
+                url,
+                name: `upstream-${index + 2}`,
+                weight,
+              })),
+            ],
+            failureThreshold,
+            cooldownMs,
+          },
+        }),
         model: formData.get('model') as string,
         pricingModel: (formData.get('pricingModel') as 'flat' | 'per_token') || 'flat',
         flatPrice: (formData.get('flatPrice') as string) || undefined,
@@ -330,6 +397,78 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
             className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
             placeholder="https://api.openai.com/v1/chat/completions"
           />
+        </div>
+        <div className="rounded-lg border border-border bg-gray-900/40 p-3 space-y-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={loadBalancingEnabled}
+              onChange={(e) => setLoadBalancingEnabled(e.target.checked)}
+              className="h-4 w-4 rounded border-border bg-gray-800"
+            />
+            Enable load balancing
+          </label>
+          {loadBalancingEnabled && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm mb-1">Additional Upstream URLs</label>
+                <textarea
+                  name="upstreams"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  placeholder="https://backup-1.example.com/v1/chat/completions&#10;https://backup-2.example.com/v1/chat/completions"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm mb-1">Strategy</label>
+                  <select
+                    name="strategy"
+                    defaultValue="round_robin"
+                    className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  >
+                    <option value="round_robin">Round Robin</option>
+                    <option value="least_latency">Least Latency</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">Weight</label>
+                  <input
+                    name="weight"
+                    type="number"
+                    min={1}
+                    max={100}
+                    defaultValue={1}
+                    className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm mb-1">Failure Threshold</label>
+                  <input
+                    name="failureThreshold"
+                    type="number"
+                    min={1}
+                    max={20}
+                    defaultValue={5}
+                    className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">Cooldown (ms)</label>
+                  <input
+                    name="cooldownMs"
+                    type="number"
+                    min={1000}
+                    max={300000}
+                    defaultValue={30000}
+                    className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

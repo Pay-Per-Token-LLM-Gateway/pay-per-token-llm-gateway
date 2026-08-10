@@ -8,6 +8,7 @@ import {
   fetchPayments,
   fetchRoutes,
   fetchAuditLogs,
+  fetchLoadBalancerHealth,
   createRoute,
   updateRoute,
   deleteRoute,
@@ -19,6 +20,7 @@ import {
   type TimeSeriesPoint,
   type PaginatedPayments,
   type PaginatedAuditLogs,
+  type LoadBalancerRouteHealth,
 } from './api';
 
 // ── Query Key Factory ────────────────────────
@@ -29,6 +31,7 @@ export const queryKeys = {
   payments: (params?: { page?: number; limit?: number; status?: string }) =>
     ['payments', params] as const,
   routes: (providerId?: string) => ['routes', providerId] as const,
+  loadBalancer: ['loadBalancer'] as const,
   auditLogs: (params?: { page?: number; limit?: number }) => ['auditLogs', params] as const,
 };
 
@@ -87,6 +90,15 @@ export function useRoutes(providerId?: string) {
     queryKey: queryKeys.routes(providerId),
     queryFn: () => fetchRoutes(providerId),
     staleTime: 30_000,
+  });
+}
+
+export function useLoadBalancerHealth() {
+  return useQuery<LoadBalancerRouteHealth[]>({
+    queryKey: queryKeys.loadBalancer,
+    queryFn: fetchLoadBalancerHealth,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
   });
 }
 

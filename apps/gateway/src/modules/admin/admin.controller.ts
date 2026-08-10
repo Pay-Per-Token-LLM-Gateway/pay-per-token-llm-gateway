@@ -23,6 +23,12 @@ export class AdminController {
     return this.adminService.getStats(wallet);
   }
 
+  @Get('load-balancer')
+  @ApiOperation({ summary: "Load balancer health for the authenticated wallet's routes" })
+  async loadBalancer(@CurrentWallet() wallet: string) {
+    return this.adminService.getLoadBalancerHealth(wallet);
+  }
+
   @Get('audit')
   @ApiOperation({ summary: "Get audit logs for the authenticated wallet's providers" })
   @ApiQuery({ name: 'providerId', required: false })

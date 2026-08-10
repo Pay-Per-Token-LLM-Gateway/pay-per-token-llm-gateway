@@ -1,10 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { prisma } from '@x402/database';
-import { getConfig } from '@x402/config';
 import { logger } from '@x402/logger';
+import { LoadBalancerService } from '../../common/load-balancer.service';
+import type { LoadBalancingConfig } from '@x402/types';
 
 @Injectable()
 export class AdminService {
+  private readonly loadBalancer: LoadBalancerService;
+
+  constructor(@Optional() loadBalancer?: LoadBalancerService) {
+    this.loadBalancer = loadBalancer ?? new LoadBalancerService();
+  }
+
   async getHealth() {
     return {
       status: 'ok' as const,
@@ -36,6 +43,36 @@ export class AdminService {
       confirmedPayments,
       failedPayments: payments - confirmedPayments,
     };
+  }
+
+  async getLoadBalancerHealth(ownerAddress: string) {
+    const providerIds = await this.getOwnedProviderIds(ownerAddress);
+    const routes = await prisma.route.findMany({
+      where: { providerId: { in: providerIds } },
+      select: {
+        id: true,
+        path: true,
+        model: true,
+        providerId: true,
+        loadBalancing: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return routes
+      .map((route) => {
+        const config = route.loadBalancing as LoadBalancingConfig | null;
+        if (!config?.upstreams?.length) return null;
+        return {
+          routeId: route.id,
+          providerId: route.providerId,
+          path: route.path,
+          model: route.model,
+          strategy: config.strategy,
+          upstreams: this.loadBalancer.getRouteSnapshot(route.id, config),
+        };
+      })
+      .filter(Boolean);
   }
 
   /**

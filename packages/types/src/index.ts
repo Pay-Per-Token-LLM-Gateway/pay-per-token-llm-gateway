@@ -30,6 +30,9 @@ export type PaymentStatus = 'pending' | 'confirmed' | 'failed' | 'refunded' | 'e
 /** Pricing model for a route */
 export type PricingModel = 'flat' | 'per_token';
 
+/** Load balancing strategy for a route with multiple upstream providers. */
+export type LoadBalancingStrategy = 'round_robin' | 'least_latency';
+
 /** A price quote returned in a 402 response */
 export interface Quote {
   /** Unique quote ID (UUID) */
@@ -155,6 +158,28 @@ export interface Provider {
 }
 
 /** A protected route/endpoint configuration */
+export interface LoadBalancedUpstream {
+  /** Upstream LLM endpoint URL */
+  url: string;
+  /** Optional display name used in health dashboards */
+  name?: string;
+  /** Relative traffic weight; defaults to 1 */
+  weight?: number;
+  /** Optional env var name for this upstream's bearer token */
+  apiKeyEnv?: string;
+  /** Optional health-check URL for operators */
+  healthCheckUrl?: string;
+}
+
+export interface LoadBalancingConfig {
+  strategy: LoadBalancingStrategy;
+  upstreams: LoadBalancedUpstream[];
+  /** Consecutive failures before the circuit opens; defaults to 5 */
+  failureThreshold?: number;
+  /** How long to avoid an unhealthy upstream; defaults to 30000 */
+  cooldownMs?: number;
+}
+
 export interface RouteConfig {
   id: string;
   providerId: string;
@@ -162,6 +187,8 @@ export interface RouteConfig {
   path: string;
   /** The upstream LLM endpoint to proxy to */
   upstreamUrl: string;
+  /** Optional multi-upstream load balancing config */
+  loadBalancing?: LoadBalancingConfig;
   /** The model identifier */
   model: string;
   /** Pricing model for this route */

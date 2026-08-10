@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { prisma } from '@x402/database';
+import { Prisma, prisma } from '@x402/database';
 import { logger } from '@x402/logger';
-import type { RouteConfig, PricingModel, PaymentAsset } from '@x402/types';
+import type { RouteConfig, PricingModel, PaymentAsset, LoadBalancingConfig } from '@x402/types';
 
 /**
  * Expand an incoming request path into the candidate route paths that may
@@ -53,6 +53,7 @@ function toRouteConfig(r: {
   providerId: string;
   path: string;
   upstreamUrl: string;
+  loadBalancing?: unknown | null;
   model: string;
   pricingModel: string;
   flatPrice: string | null;
@@ -68,6 +69,7 @@ function toRouteConfig(r: {
     providerId: r.providerId,
     path: r.path,
     upstreamUrl: r.upstreamUrl,
+    loadBalancing: normalizeLoadBalancing(r.loadBalancing),
     model: r.model,
     pricingModel: r.pricingModel as PricingModel,
     flatPrice: r.flatPrice || undefined,
@@ -78,6 +80,15 @@ function toRouteConfig(r: {
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };
+}
+
+function normalizeLoadBalancing(
+  value: unknown | null | undefined,
+): LoadBalancingConfig | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const config = value as LoadBalancingConfig;
+  if (!Array.isArray(config.upstreams) || config.upstreams.length < 2) return undefined;
+  return config;
 }
 
 @Injectable()
@@ -132,6 +143,7 @@ export class RoutesService {
       providerId: string;
       path: string;
       upstreamUrl: string;
+      loadBalancing?: LoadBalancingConfig;
       model: string;
       pricingModel: PricingModel;
       flatPrice?: string;
@@ -153,6 +165,7 @@ export class RoutesService {
         providerId: data.providerId,
         path: data.path,
         upstreamUrl: data.upstreamUrl,
+        loadBalancing: data.loadBalancing as Prisma.InputJsonValue | undefined,
         model: data.model,
         pricingModel: data.pricingModel,
         flatPrice: data.flatPrice,
@@ -171,6 +184,7 @@ export class RoutesService {
     id: string,
     data: Partial<{
       upstreamUrl: string;
+      loadBalancing: LoadBalancingConfig | null;
       flatPrice: string;
       perTokenPrice: string;
       pricingModel: PricingModel;
@@ -186,7 +200,14 @@ export class RoutesService {
     });
     if (!existing) throw new NotFoundException(`Route ${id} not found`);
 
-    const r = await prisma.route.update({ where: { id }, data });
+    const updateData = {
+      ...data,
+      ...(data.loadBalancing === null
+        ? { loadBalancing: Prisma.JsonNull }
+        : { loadBalancing: data.loadBalancing as Prisma.InputJsonValue | undefined }),
+    };
+
+    const r = await prisma.route.update({ where: { id }, data: updateData });
     return toRouteConfig(r);
   }
 

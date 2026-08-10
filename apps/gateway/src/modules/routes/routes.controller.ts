@@ -17,7 +17,7 @@ import { RoutesService } from './routes.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentWallet } from '../auth/current-wallet.decorator';
 import { routeConfigSchema, routeUpdateSchema } from '@x402/validation';
-import type { PaymentAsset } from '@x402/types';
+import type { LoadBalancingConfig, PaymentAsset } from '@x402/types';
 
 @ApiTags('routes')
 @Controller('routes')
@@ -46,6 +46,7 @@ export class RoutesController {
       providerId: string;
       path: string;
       upstreamUrl: string;
+      loadBalancing?: LoadBalancingConfig;
       model: string;
       pricingModel: 'flat' | 'per_token';
       flatPrice?: string;
@@ -69,6 +70,7 @@ export class RoutesController {
     @Body()
     body: {
       upstreamUrl?: string;
+      loadBalancing?: LoadBalancingConfig | null;
       flatPrice?: string;
       perTokenPrice?: string;
       pricingModel?: 'flat' | 'per_token';

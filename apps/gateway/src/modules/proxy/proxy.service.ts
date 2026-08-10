@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { Response } from 'express';
-import type { ChatCompletionRequest, ChatCompletionResponse } from '@x402/types';
+import type { ChatCompletionRequest, ChatCompletionResponse, RouteConfig } from '@x402/types';
 import { getConfig } from '@x402/config';
 import { logger } from '@x402/logger';
 import { retry, NonRetryableError } from '@x402/shared';
+import { LoadBalancerService } from '../../common/load-balancer.service';
 
 // ── Circuit Breaker ──────────────────────────
 
@@ -82,6 +83,119 @@ class CircuitBreaker {
 @Injectable()
 export class ProxyService {
   private readonly circuitBreaker = new CircuitBreaker();
+
+  constructor(@Optional() private readonly loadBalancer?: LoadBalancerService) {}
+
+  async forwardBalancedRequest(
+    request: ChatCompletionRequest,
+    route: RouteConfig,
+    apiKey?: string,
+    traceId?: string,
+  ): Promise<{ response: ChatCompletionResponse; responseTime: number; upstreamUrl: string }> {
+    if (!route.loadBalancing || !this.loadBalancer) {
+      const result = await this.forwardRequest(request, route.upstreamUrl, apiKey, traceId);
+      return { ...result, upstreamUrl: route.upstreamUrl };
+    }
+
+    const maxAttempts = route.loadBalancing.upstreams.length;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const selected = this.loadBalancer.selectUpstream(route.id, route.loadBalancing);
+      const start = Date.now();
+      const endpointApiKey = selected.endpoint.apiKeyEnv
+        ? process.env[selected.endpoint.apiKeyEnv]
+        : apiKey;
+
+      try {
+        const result = await this.forwardRequest(
+          request,
+          selected.endpoint.url,
+          endpointApiKey,
+          traceId,
+        );
+        this.loadBalancer.recordSuccess(route.id, selected.endpoint, Date.now() - start);
+        return { ...result, upstreamUrl: selected.endpoint.url };
+      } catch (error) {
+        lastError = error;
+        this.loadBalancer.recordFailure(
+          route.id,
+          selected.endpoint,
+          error,
+          route.loadBalancing.failureThreshold,
+        );
+        logger.warn('Load-balanced upstream failed, trying next provider', {
+          traceId,
+          routeId: route.id,
+          upstreamUrl: selected.endpoint.url,
+          attempt: attempt + 1,
+          maxAttempts,
+          error: String(error),
+        });
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
+  async forwardBalancedStreamRequest(
+    request: ChatCompletionRequest,
+    route: RouteConfig,
+    res: Response,
+    apiKey?: string,
+    traceId?: string,
+    onDone?: (totalTokens?: number) => void,
+  ): Promise<{ upstreamUrl: string }> {
+    if (!route.loadBalancing || !this.loadBalancer) {
+      await this.forwardStreamRequest(request, route.upstreamUrl, res, apiKey, traceId, onDone);
+      return { upstreamUrl: route.upstreamUrl };
+    }
+
+    const maxAttempts = route.loadBalancing.upstreams.length;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const selected = this.loadBalancer.selectUpstream(route.id, route.loadBalancing);
+      const start = Date.now();
+      const endpointApiKey = selected.endpoint.apiKeyEnv
+        ? process.env[selected.endpoint.apiKeyEnv]
+        : apiKey;
+
+      try {
+        await this.forwardStreamRequest(
+          request,
+          selected.endpoint.url,
+          res,
+          endpointApiKey,
+          traceId,
+          onDone,
+        );
+        this.loadBalancer.recordSuccess(route.id, selected.endpoint, Date.now() - start);
+        return { upstreamUrl: selected.endpoint.url };
+      } catch (error) {
+        lastError = error;
+        this.loadBalancer.recordFailure(
+          route.id,
+          selected.endpoint,
+          error,
+          route.loadBalancing.failureThreshold,
+        );
+        if (res.headersSent) {
+          throw error;
+        }
+        logger.warn('Streaming upstream failed before headers, trying next provider', {
+          traceId,
+          routeId: route.id,
+          upstreamUrl: selected.endpoint.url,
+          attempt: attempt + 1,
+          maxAttempts,
+          error: String(error),
+        });
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
 
   /**
    * Forward a request to the upstream LLM endpoint (non-streaming).

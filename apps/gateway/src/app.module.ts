@@ -12,12 +12,14 @@ import { AuthModule } from './modules/auth/auth.module';
 import { HealthController } from './common/health.controller';
 import { PrismaModule } from './common/prisma.module';
 import { RedisModule } from './common/redis.module';
+import { LoadBalancerModule } from './common/load-balancer.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     PrismaModule,
     RedisModule,
+    LoadBalancerModule,
     X402Module,
     ProxyModule,
     ProvidersModule,
