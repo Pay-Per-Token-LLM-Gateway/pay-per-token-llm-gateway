@@ -359,3 +359,26 @@ export interface Notification {
   sent: boolean;
   createdAt: string;
 }
+
+// ── Load Balancing Types ──────────────────────
+
+/** Load balancing strategy for routing requests across multiple providers. */
+export type LoadBalancingStrategy = 'round-robin' | 'least-latency' | 'weighted';
+
+/** Health status of a route/upstream from the load balancer's perspective. */
+export interface LoadBalancerHealthStatus {
+  routeId: string;
+  providerId: string;
+  model: string;
+  upstreamUrl: string;
+  weight: number;
+  active: boolean;
+  circuitOpen: boolean;
+  consecutiveFailures: number;
+  lastFailureAt: string | null;
+  averageLatencyMs: number;
+  requestCount: number;
+  successCount: number;
+  failureCount: number;
+  healthy: boolean;
+}

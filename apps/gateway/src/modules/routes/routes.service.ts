@@ -51,11 +51,30 @@ export class RoutesService {
   async findByPathAndModel(path: string, model: string): Promise<RouteConfig | null> {
     const r = await prisma.route.findFirst({
       where: { path, model, active: true },
+      orderBy: { createdAt: 'asc' },
     });
 
     if (!r) return null;
 
     return toRouteConfig(r);
+  }
+
+  /**
+   * Find all active routes matching the given path and model.
+   * Used by the load balancer to select the best upstream when multiple
+   * providers offer the same model.
+   */
+  async findAllByPathAndModel(path: string, model: string): Promise<RouteConfig[]> {
+    const routes = await prisma.route.findMany({
+      where: { path, model, active: true },
+      include: { provider: { select: { active: true } } },
+      orderBy: [{ weight: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    // Filter out routes whose provider is inactive
+    return routes
+      .filter((r) => r.provider.active)
+      .map(toRouteConfig);
   }
 
   async findById(id: string): Promise<RouteConfig> {

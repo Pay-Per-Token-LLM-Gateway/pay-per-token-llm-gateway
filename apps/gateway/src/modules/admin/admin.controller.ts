@@ -35,4 +35,11 @@ export class AdminController {
   ) {
     return this.adminService.getAuditLogs({ page, limit, action, entity });
   }
+
+  @Get('load-balancer/health')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Get load balancer provider health status' })
+  async loadBalancerHealth() {
+    return this.adminService.getLoadBalancerHealth();
+  }
 }
