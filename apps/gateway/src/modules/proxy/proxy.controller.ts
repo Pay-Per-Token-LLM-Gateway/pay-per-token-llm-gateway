@@ -390,9 +390,9 @@ export class ProxyController {
     res.setHeader('X-Request-Trace-Id', traceId);
 
     // Pipe upstream SSE stream to client; extract tokens for per-token pricing
-    await this.proxyService.forwardStreamRequest(
+    const forwardResult = await this.proxyService.forwardBalancedStreamRequest(
       body,
-      route.upstreamUrl,
+      route,
       res,
       apiKey,
       traceId,
@@ -425,7 +425,13 @@ export class ProxyController {
       entityId: traceId,
       providerId: route.providerId,
       actor: payment?.payerAddress || 'unknown',
-      details: { model: body.model, route: route.path, txHash, traceId },
+      details: {
+        model: body.model,
+        route: route.path,
+        txHash,
+        traceId,
+        upstreamUrl: forwardResult.upstreamUrl,
+      },
     });
   }
 
@@ -450,9 +456,9 @@ export class ProxyController {
       pricingModel: route.pricingModel,
     });
 
-    const { response, responseTime } = await this.proxyService.forwardRequest(
+    const { response, responseTime, upstreamUrl } = await this.proxyService.forwardBalancedRequest(
       body,
-      route.upstreamUrl,
+      route,
       apiKey,
       traceId,
     );
@@ -500,6 +506,7 @@ export class ProxyController {
         route: route.path,
         txHash,
         responseTime,
+        upstreamUrl,
         tokens: tokensUsed,
         actualCost: costResult.actualCost,
         surplus: costResult.surplus,

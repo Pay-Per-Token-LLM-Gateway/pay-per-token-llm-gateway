@@ -18,6 +18,8 @@ export const stellarNetworkSchema = z.enum(['testnet', 'mainnet', 'futurenet']);
 
 export const pricingModelSchema = z.enum(['flat', 'per_token']);
 
+export const loadBalancingStrategySchema = z.enum(['round_robin', 'least_latency']);
+
 export const paymentStatusSchema = z.enum([
   'pending',
   'confirmed',
@@ -120,11 +122,30 @@ function enforcePricingPrice(
   }
 }
 
+export const loadBalancedUpstreamSchema = z.object({
+  url: z.string().url(),
+  name: z.string().min(1).max(80).optional(),
+  weight: z.number().int().positive().max(100).default(1),
+  apiKeyEnv: z
+    .string()
+    .regex(/^[A-Z0-9_]+$/)
+    .optional(),
+  healthCheckUrl: z.string().url().optional(),
+});
+
+export const loadBalancingConfigSchema = z.object({
+  strategy: loadBalancingStrategySchema.default('round_robin'),
+  upstreams: z.array(loadBalancedUpstreamSchema).min(2),
+  failureThreshold: z.number().int().positive().max(20).default(5),
+  cooldownMs: z.number().int().positive().max(300_000).default(30_000),
+});
+
 /** Base route fields (shared by create/update schemas). */
 const routeConfigBase = z.object({
   providerId: z.string().uuid(),
   path: z.string().min(1).startsWith('/'),
   upstreamUrl: z.string().url(),
+  loadBalancing: loadBalancingConfigSchema.optional(),
   model: z.string().min(1),
   pricingModel: pricingModelSchema,
   // Prices must be non-negative integer stroop amounts — a malformed string

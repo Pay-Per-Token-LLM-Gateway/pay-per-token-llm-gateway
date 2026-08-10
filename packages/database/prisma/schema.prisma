@@ -39,6 +39,7 @@ model Route {
   providerId     String
   path           String
   upstreamUrl    String
+  loadBalancing  Json?
   model          String
   pricingModel   String   @default("flat") // "flat" | "per_token"
   flatPrice      String?

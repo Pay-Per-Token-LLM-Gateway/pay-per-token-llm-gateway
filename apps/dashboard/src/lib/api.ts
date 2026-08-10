@@ -152,6 +152,7 @@ export interface RouteResponse {
   providerId: string;
   path: string;
   upstreamUrl: string;
+  loadBalancing?: LoadBalancingConfig;
   model: string;
   pricingModel: 'flat' | 'per_token';
   flatPrice?: string;
@@ -163,6 +164,21 @@ export interface RouteResponse {
   updatedAt: string;
 }
 
+export interface LoadBalancedUpstream {
+  url: string;
+  name?: string;
+  weight?: number;
+  apiKeyEnv?: string;
+  healthCheckUrl?: string;
+}
+
+export interface LoadBalancingConfig {
+  strategy: 'round_robin' | 'least_latency';
+  upstreams: LoadBalancedUpstream[];
+  failureThreshold?: number;
+  cooldownMs?: number;
+}
+
 export function fetchRoutes(providerId?: string): Promise<RouteResponse[]> {
   return request<RouteResponse[]>(`/routes${providerId ? `?providerId=${providerId}` : ''}`);
 }
@@ -171,6 +187,7 @@ export function createRoute(data: {
   providerId: string;
   path: string;
   upstreamUrl: string;
+  loadBalancing?: LoadBalancingConfig;
   model: string;
   pricingModel: 'flat' | 'per_token';
   flatPrice?: string;
@@ -268,6 +285,32 @@ export function fetchAuditLogs(params?: {
   if (params?.entity) qs.set('entity', params.entity);
   const query = qs.toString();
   return request<PaginatedAuditLogs>(`/admin/audit${query ? `?${query}` : ''}`);
+}
+
+export interface LoadBalancerRouteHealth {
+  routeId: string;
+  providerId: string;
+  path: string;
+  model: string;
+  strategy: 'round_robin' | 'least_latency';
+  upstreams: Array<{
+    id: string;
+    url: string;
+    name?: string;
+    weight: number;
+    healthy: boolean;
+    circuitOpen: boolean;
+    failures: number;
+    requestCount: number;
+    averageLatencyMs: number;
+    lastLatencyMs?: number;
+    lastError?: string;
+    lastCheckedAt?: string;
+  }>;
+}
+
+export function fetchLoadBalancerHealth(): Promise<LoadBalancerRouteHealth[]> {
+  return request<LoadBalancerRouteHealth[]>('/admin/load-balancer');
 }
 
 // ── Webhooks ─────────────────────────────────
