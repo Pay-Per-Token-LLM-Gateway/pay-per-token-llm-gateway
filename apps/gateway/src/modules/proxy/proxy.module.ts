@@ -9,6 +9,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 import { AdminModule } from '../admin/admin.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
+import { EscrowModule } from '../escrow/escrow.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
     AnalyticsModule,
     AdminModule,
     WebhooksModule,
+    EscrowModule,
   ],
   controllers: [ProxyController],
   providers: [ProxyService, RateLimitGuard],

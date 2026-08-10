@@ -508,11 +508,23 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the complete step-by-step guide.
 | `SOROBAN_RPC_URL` | `https://soroban-testnet.stellar.org` | Soroban RPC endpoint |
 | `NETWORK_PASSPHRASE` | `Test SDF Network ; September 2015` | Stellar network passphrase |
 | `USDC_ISSUER` | `GBBD47...` | USDC token issuer on Stellar |
+| `CREDIT_ESCROW_CONTRACT` | configured testnet contract | Credit-escrow Soroban contract ID |
+| `CONTRACT_ADMIN_SECRET` | — | Gateway signer authorized to call `credit-escrow.charge`; `STELLAR_SECRET_KEY` is accepted as a compatibility fallback |
 | `JWT_SECRET` | — | Secret key for JWT session tokens |
 | `QUOTE_EXPIRY_SECONDS` | `300` | Time before quotes expire (5 min) |
 | `LLM_REQUEST_TIMEOUT` | `120000` | Upstream LLM timeout in ms |
 | `CORS_ORIGINS` | `http://localhost:3001` | Allowed CORS origins (comma-separated) |
 | `UPSTREAM_API_KEY_<PROVIDER>` | — | Upstream LLM API key per provider |
+
+### Credit escrow flow
+
+Authenticated wallet sessions may use prepaid credit without sending an
+`X-Payment-Hash`. The gateway simulates `balance(user)` before forwarding a
+USDC-priced request, skips Horizon verification when the estimate is covered,
+then submits `charge(user, actualCost, quoteId)` after the upstream response.
+If the contract, RPC, session, or balance check is unavailable, the existing
+x402 per-request flow remains the fallback. The dashboard exposes the
+authenticated wallet's balance and `get_usage` history at **Credit Escrow**.
 
 ---
 
@@ -539,7 +551,7 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the complete step-by-step guide.
 - [ ] Streaming (SSE) support with per-token pricing in SDK
 - [ ] Kubernetes deployment manifests
 - [ ] Provider payout automation via multisig contracts
-- [ ] Prepaid credit escrow contract integration
+- [x] Prepaid credit escrow contract integration with authenticated proxy fallback
 
 ### 💡 v3 — Planned
 

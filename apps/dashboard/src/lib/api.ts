@@ -296,6 +296,25 @@ export function fetchProviders(): Promise<ProviderResponse[]> {
   return request<ProviderResponse[]>('/providers');
 }
 
+export interface EscrowBalanceResponse {
+  address: string;
+  configured: boolean;
+  balance: string;
+}
+
+export interface EscrowUsageResponse {
+  address: string;
+  usage: Array<{ user: string; amount: string; quoteId: string; timestamp: number }>;
+}
+
+export function fetchEscrowBalance(): Promise<EscrowBalanceResponse> {
+  return request<EscrowBalanceResponse>('/escrow/balances');
+}
+
+export function fetchEscrowUsage(): Promise<EscrowUsageResponse> {
+  return request<EscrowUsageResponse>('/escrow/usage');
+}
+
 export function createProvider(data: {
   name: string;
   walletAddress: string;

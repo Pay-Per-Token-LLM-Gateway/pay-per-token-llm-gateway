@@ -183,6 +183,9 @@ importers:
       '@socket.io/redis-adapter':
         specifier: ^8.3.0
         version: 8.3.0(socket.io-adapter@2.5.8)
+      '@stellar/stellar-sdk':
+        specifier: ^12.0.0
+        version: 12.3.0
       '@x402/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics

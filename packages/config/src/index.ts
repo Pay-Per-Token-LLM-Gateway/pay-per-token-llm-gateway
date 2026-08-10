@@ -206,7 +206,8 @@ export function loadConfig(): GatewayConfig {
         process.env.USDC_ISSUER || 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
       quoteExpirySeconds: parseInt(process.env.QUOTE_EXPIRY_SECONDS || '300', 10),
       minPaymentAmount: process.env.MIN_PAYMENT_AMOUNT || '10000', // 0.00001 XLM in stroops
-      contractAdminSecret: process.env.CONTRACT_ADMIN_SECRET || undefined,
+      contractAdminSecret:
+        process.env.CONTRACT_ADMIN_SECRET || process.env.STELLAR_SECRET_KEY || undefined,
     },
 
     llm: {
@@ -245,8 +246,7 @@ export function loadConfig(): GatewayConfig {
         process.env.CREDIT_ESCROW_CONTRACT ||
         'CCE7AWVXPO57W5KDONOPMHDV4S5UBUBMHNJVSAVPL7AZGMD4WQN6WVAP',
       multisig:
-        process.env.MULTISIG_CONTRACT ||
-        'CDMBVMMNJVAJVAV3T2TAL2TAACGTKYUS45RXNLCYKYUC3VGHBI66NWAA',
+        process.env.MULTISIG_CONTRACT || 'CDMBVMMNJVAJVAV3T2TAL2TAACGTKYUS45RXNLCYKYUC3VGHBI66NWAA',
     },
   };
 }

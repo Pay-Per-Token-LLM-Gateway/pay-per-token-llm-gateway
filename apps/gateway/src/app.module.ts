@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { HealthController } from './common/health.controller';
 import { PrismaModule } from './common/prisma.module';
 import { RedisModule } from './common/redis.module';
+import { EscrowModule } from './modules/escrow/escrow.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { RedisModule } from './common/redis.module';
     WebhooksModule,
     AdminModule,
     AuthModule,
+    EscrowModule,
   ],
   controllers: [HealthController],
 })

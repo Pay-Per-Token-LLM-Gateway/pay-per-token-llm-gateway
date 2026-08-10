@@ -23,6 +23,16 @@ import { calculatePrice, comparePayment } from '@x402/x402-core';
 import { logger } from '@x402/logger';
 import { generateId } from '@x402/shared';
 import type { ChatCompletionRequest, PaymentRecord, Quote, RouteConfig } from '@x402/types';
+import { AuthService } from '../auth/auth.service';
+import { CreditEscrowService } from '../escrow/credit-escrow.service';
+
+interface EscrowContext {
+  userAddress: string;
+  quoteId: string;
+  estimatedAmount: string;
+}
+
+type AuthenticatedRequest = Request & { authenticatedAddress?: string };
 
 @ApiTags('proxy')
 @Controller()
@@ -36,6 +46,8 @@ export class ProxyController {
     private readonly analyticsService: AnalyticsService,
     private readonly adminService: AdminService,
     private readonly webhooksService: WebhooksService,
+    private readonly authService: AuthService,
+    private readonly escrowService: CreditEscrowService,
   ) {}
 
   /**
@@ -80,19 +92,55 @@ export class ProxyController {
         });
       }
 
-      // 3. Check for payment header
+      // 3. Use authenticated credit escrow when available. Requests without
+      // a valid session keep the original x402 payment flow unchanged.
       const txHash = req.headers['x-payment-hash'] as string | undefined;
+      if (!txHash) {
+        const escrow = await this.tryEscrow(req as AuthenticatedRequest, route, body);
+        if (escrow) {
+          const upstreamApiKey =
+            process.env[`UPSTREAM_API_KEY_${route.providerId.toUpperCase().replace(/-/g, '_')}`];
+
+          if (body.stream) {
+            return this.handleStreamingForward(
+              res,
+              body,
+              route,
+              'escrow',
+              upstreamApiKey,
+              null,
+              traceId,
+              startTime,
+              escrow,
+            );
+          }
+
+          return this.handleNonStreamingForward(
+            res,
+            body,
+            route,
+            'escrow',
+            upstreamApiKey,
+            null,
+            traceId,
+            startTime,
+            escrow,
+          );
+        }
+      }
+
+      // 4. Check for payment header
       if (!txHash) {
         return this.handle402Response(res, route, traceId, model, body);
       }
 
-      // 4. Verify payment (includes cross-route replay protection)
+      // 5. Verify payment (includes cross-route replay protection)
       const verified = await this.verifyAndConfirmPayment(txHash, route, res, traceId);
       if (!verified) {
         return; // 402 error response already sent
       }
 
-      // 5. Resolve upstream API key
+      // 6. Resolve upstream API key
       const upstreamApiKey =
         process.env[`UPSTREAM_API_KEY_${route.providerId.toUpperCase().replace(/-/g, '_')}`];
       const payment = await this.paymentsService.findByTxHash(txHash);
@@ -140,6 +188,74 @@ export class ProxyController {
   }
 
   // ── Helper methods ───────────────────────────
+
+  private async tryEscrow(
+    req: AuthenticatedRequest,
+    route: RouteConfig,
+    body: ChatCompletionRequest,
+  ): Promise<EscrowContext | null> {
+    const userAddress = await this.resolveAuthenticatedAddress(req);
+    if (!userAddress || !this.escrowService.isConfigured()) return null;
+
+    try {
+      const quote = await this.x402Service.generateQuoteForRoute(route, body.max_tokens);
+      // The deployed credit-escrow contract is configured for the same
+      // smallest-unit accounting used by the gateway's USDC routes.
+      if (quote.asset !== 'USDC') return null;
+      const check = await this.escrowService.checkEscrow(userAddress, BigInt(quote.amount));
+      if (!check.useEscrow) return null;
+
+      logger.info('Using credit escrow for request', {
+        userAddress,
+        route: route.path,
+        estimatedAmount: quote.amount,
+      });
+      return { userAddress, quoteId: quote.id, estimatedAmount: quote.amount };
+    } catch (error) {
+      logger.warn('Credit escrow unavailable; continuing with x402 payment flow', {
+        error: String(error),
+      });
+      return null;
+    }
+  }
+
+  private async resolveAuthenticatedAddress(
+    req: AuthenticatedRequest,
+  ): Promise<string | undefined> {
+    const header = req.headers.authorization;
+    if (!header) return undefined;
+    const [scheme, token] = header.split(' ');
+    if (scheme !== 'Bearer' || !token) return undefined;
+
+    try {
+      const result = await this.authService.validateToken(token);
+      return result.valid ? result.address : undefined;
+    } catch (error) {
+      logger.warn('Optional escrow authentication failed; continuing with x402', {
+        error: String(error),
+      });
+      return undefined;
+    }
+  }
+
+  private async chargeEscrow(
+    escrow: EscrowContext,
+    actualCost: string,
+    traceId: string,
+  ): Promise<void> {
+    const charge = await this.escrowService.charge(
+      escrow.userAddress,
+      BigInt(actualCost),
+      escrow.quoteId,
+    );
+    logger.info('Credit escrow charged', {
+      traceId,
+      userAddress: escrow.userAddress,
+      txHash: charge.txHash,
+      amount: charge.charged.toString(),
+      remaining: charge.remaining.toString(),
+    });
+  }
 
   /**
    * Send a 402 Payment Required response.
@@ -332,6 +448,7 @@ export class ProxyController {
     payment: PaymentRecord | null,
     traceId: string,
     startTime: number,
+    escrow?: EscrowContext,
   ) {
     logger.info('Forwarding streaming request to upstream', {
       traceId,
@@ -359,12 +476,17 @@ export class ProxyController {
           totalTokens,
           res,
           traceId,
+          escrow?.estimatedAmount,
         );
+
+        if (escrow) {
+          await this.chargeEscrow(escrow, costResult.actualCost, traceId);
+        }
 
         await this.analyticsService.recordPaidRequest(
           route.path,
           route.providerId,
-          payment?.payerAddress || 'unknown',
+          escrow?.userAddress || payment?.payerAddress || 'unknown',
           costResult.actualCost,
           payment?.asset || 'USDC',
           streamDuration,
@@ -376,7 +498,7 @@ export class ProxyController {
       action: 'request_forwarded_stream',
       entity: 'request',
       entityId: traceId,
-      actor: payment?.payerAddress || 'unknown',
+      actor: escrow?.userAddress || payment?.payerAddress || 'unknown',
       details: { model: body.model, route: route.path, txHash, traceId },
     });
   }
@@ -394,6 +516,7 @@ export class ProxyController {
     payment: PaymentRecord | null,
     traceId: string,
     _startTime: number,
+    escrow?: EscrowContext,
   ) {
     logger.info('Forwarding request to upstream', {
       traceId,
@@ -411,12 +534,24 @@ export class ProxyController {
 
     // Calculate actual cost for per-token pricing
     const tokensUsed = response.usage?.total_tokens;
-    const costResult = await this.applyMeteredPricing(route, payment, tokensUsed, res, traceId);
+    const costResult = await this.applyMeteredPricing(
+      route,
+      payment,
+      tokensUsed,
+      res,
+      traceId,
+      escrow?.estimatedAmount,
+    );
+
+    if (escrow) {
+      await this.chargeEscrow(escrow, costResult.actualCost, traceId);
+      res.setHeader('X-Escrow-Charge', escrow.quoteId);
+    }
 
     await this.analyticsService.recordPaidRequest(
       route.path,
       route.providerId,
-      payment?.payerAddress || 'unknown',
+      escrow?.userAddress || payment?.payerAddress || 'unknown',
       costResult.actualCost,
       payment?.asset || 'USDC',
       responseTime,
@@ -445,7 +580,7 @@ export class ProxyController {
       action: 'request_forwarded',
       entity: 'request',
       entityId: traceId,
-      actor: payment?.payerAddress || 'unknown',
+      actor: escrow?.userAddress || payment?.payerAddress || 'unknown',
       details: {
         model: body.model,
         route: route.path,
@@ -480,6 +615,7 @@ export class ProxyController {
     tokensUsed: number | undefined,
     res: Response,
     traceId: string,
+    escrowEstimate?: string,
   ): Promise<{
     actualCost: string;
     surplus: string;
@@ -488,7 +624,7 @@ export class ProxyController {
   }> {
     if (route.pricingModel !== 'per_token' || !tokensUsed) {
       // Flat-rate or no token data: actual cost = paid amount
-      const paid = payment?.amount?.toString() || '0';
+      const paid = payment?.amount?.toString() || escrowEstimate || '0';
       if (!res.headersSent) {
         res.setHeader('X-Actual-Cost', paid);
       }
@@ -505,7 +641,7 @@ export class ProxyController {
     const actualCost = priceResult.amount;
 
     // Compare against paid amount
-    const paidAmount = payment?.amount?.toString() || actualCost;
+    const paidAmount = payment?.amount?.toString() || escrowEstimate || actualCost;
     const comparison = comparePayment(paidAmount, actualCost);
 
     // Set response headers (skip if streaming — headers already flushed)
