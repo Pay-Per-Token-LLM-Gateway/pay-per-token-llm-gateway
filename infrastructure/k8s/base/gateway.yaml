@@ -15,11 +15,49 @@ spec:
       labels:
         app: gateway
     spec:
+      serviceAccountName: x402-gateway
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: migrate
+          image: ghcr.io/pay-per-token-llm-gateway/gateway:v0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/main.js", "--migrate-only"]
+          envFrom:
+            - configMapRef:
+                name: x402-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: x402-secrets
+                  key: JWT_SECRET
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: x402-secrets
+                  key: DATABASE_URL
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
       containers:
         - name: gateway
-          image: ghcr.io/pay-per-token-llm-gateway/gateway:latest
+          image: ghcr.io/pay-per-token-llm-gateway/gateway:v0.1.0
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
+              name: http
           envFrom:
             - configMapRef:
                 name: x402-config
@@ -41,20 +79,41 @@ spec:
             limits:
               cpu: 1000m
               memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /health
-              port: 3000
-            initialDelaySeconds: 15
+              port: http
             periodSeconds: 10
             failureThreshold: 3
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /health
-              port: 3000
-            initialDelaySeconds: 30
+              port: http
             periodSeconds: 15
             failureThreshold: 3
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -66,8 +125,5 @@ spec:
     app: gateway
   ports:
     - port: 3000
-      targetPort: 3000
+      targetPort: http
       name: http
-    - port: 80
-      targetPort: 3000
-      name: http-alt

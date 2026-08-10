@@ -4,11 +4,23 @@ namespace: x402-gateway
 resources:
   - namespace.yaml
   - configmap.yaml
-  - secret.yaml
   - postgres.yaml
   - redis.yaml
   - gateway.yaml
   - ingress.yaml
+  - networkpolicy.yaml
+  - serviceaccount.yaml
 commonLabels:
   app.kubernetes.io/part-of: x402-gateway
   app.kubernetes.io/managed-by: kustomize
+images:
+  - name: ghcr.io/pay-per-token-llm-gateway/gateway
+    newName: ghcr.io/pay-per-token-llm-gateway/gateway
+    newTag: v0.1.0
+generatorOptions:
+  disableNameSuffixHash: true
+secretGenerator:
+  - name: x402-secrets
+    behavior: create
+    envs:
+      - secret.env
