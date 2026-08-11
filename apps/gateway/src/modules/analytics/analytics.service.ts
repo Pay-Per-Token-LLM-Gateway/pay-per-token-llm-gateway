@@ -15,7 +15,7 @@ export class AnalyticsService {
       where: { walletAddress: ownerAddress },
       select: { id: true },
     });
-    return providers.map((p) => p.id);
+    return providers.map((p: { id: string }) => p.id);
   }
 
   /** Record an unpaid (402) request event. */
@@ -156,7 +156,7 @@ export class AnalyticsService {
       take: 10,
     });
 
-    const topCallers = topCallerRows.map((row) => ({
+    const topCallers = topCallerRows.map((row: any) => ({
       address: row.callerAddress ?? 'unknown',
       totalSpent: (row._sum.amount || 0n).toString(),
       requestCount: row._count.id,
@@ -172,7 +172,7 @@ export class AnalyticsService {
       take: 10,
     });
 
-    const topRoutes = topRouteRows.map((row) => ({
+    const topRoutes = topRouteRows.map((row: any) => ({
       path: row.route,
       requestCount: row._count.id,
       revenue: (row._sum.amount || 0n).toString(),
@@ -209,21 +209,7 @@ export class AnalyticsService {
     const now = new Date();
     const startTime = new Date(now.getTime() - durationHours * 60 * 60 * 1000);
 
-    // Fetch all events in the time window
-    const events = await prisma.analyticsEvent.findMany({
-      where: {
-        providerId,
-        createdAt: { gte: startTime },
-      },
-      select: {
-        type: true,
-        amount: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    // Build time buckets
+    // Build time buckets (zero-filled)
     const intervalMs = intervalMinutes * 60 * 1000;
     const buckets: Map<number, TimeSeriesDataPoint> = new Map();
 
@@ -237,27 +223,37 @@ export class AnalyticsService {
       });
     }
 
-    // Fill buckets from events
-    for (const event of events) {
-      const eventTime = event.createdAt.getTime();
-      const bucketTime =
-        startTime.getTime() +
-        Math.floor((eventTime - startTime.getTime()) / intervalMs) * intervalMs;
+    // Fetch aggregated events in the time window using SQL bucketing
+    const rawResults = await prisma.$queryRaw<
+      { bucket: Date; type: string; count: number; revenue: string }[]
+    >`
+      SELECT 
+        to_timestamp(floor(extract(epoch from "createdAt") / (${intervalMinutes} * 60)) * (${intervalMinutes} * 60)) AT TIME ZONE 'UTC' as bucket,
+        type,
+        COUNT(*)::integer as count,
+        SUM(COALESCE(amount, 0))::text as revenue
+      FROM "AnalyticsEvent"
+      WHERE "providerId" = ${providerId} AND "createdAt" >= ${startTime}
+      GROUP BY bucket, type
+      ORDER BY bucket ASC
+    `;
+
+    // Fill buckets from SQL results
+    for (const row of rawResults) {
+      const bucketTime = row.bucket.getTime();
       const bucket = buckets.get(bucketTime);
       if (!bucket) continue;
 
-      switch (event.type) {
+      switch (row.type) {
         case 'request:paid':
-          bucket.paidRequests++;
-          if (event.amount) {
-            bucket.revenue = (BigInt(bucket.revenue) + event.amount).toString();
-          }
+          bucket.paidRequests = row.count;
+          bucket.revenue = row.revenue;
           break;
         case 'request:unpaid':
-          bucket.unpaidRequests++;
+          bucket.unpaidRequests = row.count;
           break;
         case 'payment:failed':
-          bucket.failedVerifications++;
+          bucket.failedVerifications = row.count;
           break;
       }
     }
@@ -296,7 +292,7 @@ export class AnalyticsService {
       take: filter?.limit || 100,
     });
 
-    return rows.map((r) => ({
+    return rows.map((r: any) => ({
       type: r.type as AnalyticsEvent['type'],
       route: r.route,
       providerId: r.providerId,
