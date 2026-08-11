@@ -175,6 +175,23 @@ model Notification {
   @@index([createdAt])
 }
 
+// ── In-App Notifications (persisted, wallet-scoped) ─
+
+model InAppNotification {
+  id         String   @id @default(uuid())
+  providerId String
+  event      String
+  data       Json
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([providerId, read])
+  @@index([createdAt])
+}
+
 // ── Analytics Events ──────────────────────────
 
 model AnalyticsEvent {

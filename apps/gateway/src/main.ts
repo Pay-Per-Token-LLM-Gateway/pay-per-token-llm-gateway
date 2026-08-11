@@ -71,6 +71,7 @@ async function bootstrap() {
     .addTag('payments', 'Payment history and status')
     .addTag('analytics', 'Usage and revenue analytics')
     .addTag('admin', 'Admin operations')
+    .addTag('notifications', 'In-app notifications')
     .addTag('health', 'Health check')
     .build();
 

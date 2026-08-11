@@ -16,15 +16,44 @@ export interface NotificationHandler {
   send(payload: NotificationPayload): Promise<boolean>;
 }
 
-// ── In-App Notification Handler (logs + in-memory queue) ─
-
-interface InAppMessage {
+export interface InAppMessage {
   id: string;
   providerId: string;
   event: string;
   data: Record<string, unknown>;
   timestamp: string;
   read: boolean;
+}
+
+// ── In-App Notification Handler (DB-backed with in-memory fallback) ─
+
+type PrismaClient = {
+  inAppNotification: {
+    create: (args: { data: Record<string, unknown> }) => Promise<{ id: string }>;
+    findMany: (args: {
+      where: Record<string, unknown>;
+      orderBy: Record<string, string>;
+      take: number;
+      skip: number;
+    }) => Promise<InAppMessage[]>;
+    update: (args: { where: { id: string }; data: Record<string, unknown> }) => Promise<unknown>;
+    count: (args: { where: Record<string, unknown> }) => Promise<number>;
+  };
+};
+
+let prisma: PrismaClient | null = null;
+
+/**
+ * Set the Prisma client for DB-backed notifications.
+ * Called during gateway bootstrap when DATABASE_URL is available.
+ */
+export function setPrismaClient(client: PrismaClient): void {
+  prisma = client;
+}
+
+/** Check if DB-backed notifications are available */
+function hasDb(): boolean {
+  return prisma !== null;
 }
 
 const inAppQueue: InAppMessage[] = [];
@@ -40,31 +69,137 @@ export const inAppHandler: NotificationHandler = {
       timestamp: new Date().toISOString(),
       read: false,
     };
-    inAppQueue.unshift(message);
 
-    // Keep only last 1000 messages
+    // Persist to DB when available
+    if (hasDb()) {
+      try {
+        await prisma!.inAppNotification.create({
+          data: {
+            providerId: payload.providerId,
+            event: payload.event,
+            data: payload.data,
+            read: false,
+          },
+        });
+        logger.info('In-app notification persisted', {
+          providerId: payload.providerId,
+          event: payload.event,
+        });
+        return true;
+      } catch (error) {
+        logger.error('Failed to persist in-app notification, falling back to in-memory', {
+          error: String(error),
+        });
+      }
+    }
+
+    // In-memory fallback
+    inAppQueue.unshift(message);
     if (inAppQueue.length > 1000) {
       inAppQueue.length = 1000;
     }
 
-    logger.info('In-app notification', payload as unknown as Record<string, unknown>);
+    logger.info('In-app notification (in-memory)', payload as unknown as Record<string, unknown>);
     return true;
   },
 };
 
 /** Get in-app notifications for a provider */
-export function getInAppNotifications(providerId: string, limit = 50): InAppMessage[] {
-  return inAppQueue.filter((m) => m.providerId === providerId).slice(0, limit);
+export async function getInAppNotifications(
+  providerId: string,
+  options: { page?: number; limit?: number; unreadOnly?: boolean } = {},
+): Promise<{ notifications: InAppMessage[]; total: number; unread: number }> {
+  const page = options.page || 1;
+  const limit = options.limit || 50;
+  const skip = (page - 1) * limit;
+
+  if (hasDb()) {
+    try {
+      const where: Record<string, unknown> = { providerId };
+      if (options.unreadOnly) {
+        where.read = false;
+      }
+
+      const [notifications, total, unread] = await Promise.all([
+        prisma!.inAppNotification.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip,
+        }),
+        prisma!.inAppNotification.count({ where: { providerId } }),
+        prisma!.inAppNotification.count({ where: { providerId, read: false } }),
+      ]);
+
+      return {
+        notifications: notifications.map((n: any) => ({
+          id: n.id,
+          providerId: n.providerId,
+          event: n.event,
+          data: n.data,
+          read: n.read,
+          timestamp: n.createdAt || n.timestamp,
+        })),
+        total,
+        unread,
+      };
+    } catch (error) {
+      logger.error('Failed to query DB notifications, falling back to in-memory', {
+        error: String(error),
+      });
+    }
+  }
+
+  // In-memory fallback
+  const filtered = inAppQueue.filter((m) => m.providerId === providerId);
+  const total = filtered.length;
+  const unread = filtered.filter((m) => !m.read).length;
+  const notifications = filtered.slice(skip, skip + limit);
+
+  return { notifications, total, unread };
 }
 
 /** Mark a notification as read */
-export function markInAppRead(messageId: string): boolean {
+export async function markInAppRead(messageId: string): Promise<boolean> {
+  if (hasDb()) {
+    try {
+      await prisma!.inAppNotification.update({
+        where: { id: messageId },
+        data: { read: true },
+      });
+      return true;
+    } catch (error) {
+      logger.error('Failed to mark notification read in DB, falling back to in-memory', {
+        error: String(error),
+      });
+    }
+  }
+
+  // In-memory fallback
   const msg = inAppQueue.find((m) => m.id === messageId);
   if (msg) {
     msg.read = true;
     return true;
   }
   return false;
+}
+
+/** Get unread count for a provider */
+export async function getUnreadCount(providerId: string): Promise<number> {
+  if (hasDb()) {
+    try {
+      return await prisma!.inAppNotification.count({
+        where: { providerId, read: false },
+      });
+    } catch (error) {
+      logger.error('Failed to query unread count from DB, falling back to in-memory', {
+        error: String(error),
+      });
+    }
+  }
+
+  // In-memory fallback
+  return inAppQueue.filter((m) => m.providerId === providerId && !m.read).length;
 }
 
 // ── Email Notification Handler ───────────────
