@@ -27,10 +27,13 @@ export interface QuoteGeneratorOptions {
   usdcIssuer: string;
   /** Estimated max tokens for per-token pricing (from request max_tokens) */
   estimatedTokens?: number;
+  /** Minimum payment amount in stroops (defaults to 10000) */
+  minPaymentAmount?: string;
 }
 
 /** Default token estimate when max_tokens is not specified */
 const DEFAULT_TOKEN_ESTIMATE = 4096;
+const DEFAULT_MIN_PAYMENT_AMOUNT = '10000';
 
 /**
  * Generate a payment quote for a given route configuration.
@@ -48,14 +51,33 @@ export function generateQuote(options: QuoteGeneratorOptions): Quote {
   let estimatedMaxTokens: number | undefined;
   let perTokenPrice: string | undefined;
 
+  // Safe BigInt parser helper
+  const parseBigIntSafe = (val: string | undefined, fallback: bigint): bigint => {
+    if (!val) return fallback;
+    try {
+      return BigInt(val);
+    } catch {
+      return fallback;
+    }
+  };
+
   if (options.route.pricingModel === 'per_token' && options.route.perTokenPrice) {
     // Per-token: charge estimated deposit
     perTokenPrice = options.route.perTokenPrice;
     estimatedMaxTokens = options.estimatedTokens || DEFAULT_TOKEN_ESTIMATE;
-    amount = (BigInt(options.route.perTokenPrice) * BigInt(estimatedMaxTokens)).toString();
+    const priceBI = parseBigIntSafe(options.route.perTokenPrice, 0n);
+    amount = (priceBI * BigInt(estimatedMaxTokens)).toString();
   } else {
     // Flat: charge flat price
     amount = options.route.flatPrice || '0';
+  }
+
+  // Enforce minimum payment amount
+  const defaultMinBI = parseBigIntSafe(DEFAULT_MIN_PAYMENT_AMOUNT, 10000n);
+  const minAmount = parseBigIntSafe(options.minPaymentAmount, defaultMinBI);
+  const currentAmountBI = parseBigIntSafe(amount, 0n);
+  if (currentAmountBI < minAmount) {
+    amount = minAmount.toString();
   }
 
   // MEMO_TEXT is limited to 28 bytes. Derive a deterministic short memo from
@@ -130,6 +152,8 @@ export interface VerifyPaymentOptions {
   horizonUrl: string;
   sorobanRpcUrl: string;
   networkPassphrase: string;
+  /** Minimum payment amount in stroops (defaults to 10000) */
+  minPaymentAmount?: string;
 }
 
 /**
@@ -225,6 +249,16 @@ export async function verifyStellarPayment(
       } else {
         // Flat: exact amount match (both sides in stroops)
         requiredAmount = BigInt(quote.amount);
+      }
+      let minAmount = 10000n;
+      try {
+        minAmount = BigInt(options.minPaymentAmount || DEFAULT_MIN_PAYMENT_AMOUNT);
+      } catch {
+        // Fall back to default minimum if misconfigured
+        minAmount = 10000n;
+      }
+      if (requiredAmount < minAmount) {
+        requiredAmount = minAmount;
       }
     } catch {
       // Malformed quote price → nothing can match

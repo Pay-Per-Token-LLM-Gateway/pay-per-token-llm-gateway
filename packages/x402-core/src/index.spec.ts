@@ -114,7 +114,7 @@ describe('generateQuote', () => {
     expect(quote.estimatedMaxTokens).toBe(256);
   });
 
-  it('defaults amount to 0 for missing price', () => {
+  it('defaults amount to minPaymentAmount (10000 stroops) when route price is below minimum', () => {
     const route = makeRoute({ flatPrice: undefined, perTokenPrice: undefined });
     const quote = generateQuote({
       route,
@@ -125,7 +125,23 @@ describe('generateQuote', () => {
       usdcIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
     });
 
-    expect(quote.amount).toBe('0');
+    // Default minPaymentAmount is '10000'
+    expect(quote.amount).toBe('10000');
+  });
+
+  it('enforces custom minPaymentAmount during quote generation', () => {
+    const route = makeRoute({ flatPrice: '5000' });
+    const quote = generateQuote({
+      route,
+      providerAddress: 'GA5ZSE6VKPVFLEXMWJQBGHE4FJHKQIFSJMLQ7H4VFQB4UHLEH5IOVK3F',
+      gatewayBaseUrl: 'http://localhost:3000',
+      network: 'testnet',
+      quoteExpirySeconds: 300,
+      usdcIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      minPaymentAmount: '20000',
+    });
+
+    expect(quote.amount).toBe('20000');
   });
 });
 
