@@ -68,13 +68,13 @@ export class X402Client {
 
     // 402 → handle payment + retry
     if (firstResponse.status === 402) {
-      const paymentRequired: PaymentRequiredResponse = await firstResponse.json();
+      const paymentRequired: PaymentRequiredResponse = (await firstResponse.json()) as any;
       await firstResponse.body?.cancel();
       return this.handle402Payment(paymentRequired, request, route, options, false);
     }
 
     if (firstResponse.ok) {
-      const response: ChatCompletionResponse = await firstResponse.json();
+      const response: ChatCompletionResponse = (await firstResponse.json()) as any;
       return { success: true, response, cost: { amount: '0', asset: 'USDC' } };
     }
 
@@ -101,7 +101,7 @@ export class X402Client {
     });
 
     if (firstResponse.status === 402) {
-      const paymentRequired: PaymentRequiredResponse = await firstResponse.json();
+      const paymentRequired: PaymentRequiredResponse = (await firstResponse.json()) as any;
       await firstResponse.body?.cancel();
       return this.handle402Payment(paymentRequired, streamingRequest, route, options, true);
     }
@@ -132,7 +132,7 @@ export class X402Client {
     try {
       const response = await fetch(`${this.config.gatewayUrl}/api/v1/payments/${quoteId}/status`);
       if (!response.ok) return null;
-      return await response.json();
+      return (await response.json()) as any;
     } catch {
       return null;
     }
@@ -208,7 +208,7 @@ export class X402Client {
       } as X402StreamResult;
     }
 
-    const llmResponse: ChatCompletionResponse = await response.json();
+    const llmResponse: ChatCompletionResponse = (await response.json()) as any;
     const receipt: PaymentReceipt | undefined = response.headers.get('X-Payment-Receipt')
       ? JSON.parse(response.headers.get('X-Payment-Receipt')!)
       : undefined;
@@ -276,7 +276,7 @@ export class X402Client {
 
       // Submit to Horizon via SDK server (not raw fetch)
       const server = createHorizonServer(quote.network);
-      await server.submitTransaction(result.txXdr);
+      await server.submitTransaction(result.txXdr as any);
 
       logger.info('Payment submitted', {
         txHash: result.txHash,
@@ -321,7 +321,7 @@ export class X402Client {
 
       // 3. Submit the signed transaction
       const server = createHorizonServer(quote.network);
-      await server.submitTransaction(signedXdr);
+      await server.submitTransaction(signedXdr as any);
 
       logger.info('Payment submitted (external signer)', {
         txHash: unsigned.txHash,
@@ -350,7 +350,7 @@ export class X402Client {
       try {
         const response = await fetch(`${horizonUrl}/transactions/${txHash}`);
         if (response.ok) {
-          const txData = await response.json();
+          const txData = (await response.json()) as any;
           if (txData.successful) return true;
         }
       } catch {

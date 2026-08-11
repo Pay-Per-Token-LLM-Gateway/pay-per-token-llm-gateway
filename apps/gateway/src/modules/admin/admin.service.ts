@@ -48,7 +48,7 @@ export class AdminService {
       where: { walletAddress: ownerAddress },
       select: { id: true },
     });
-    return providers.map((p) => p.id);
+    return providers.map((p: any) => p.id);
   }
 
   /**
