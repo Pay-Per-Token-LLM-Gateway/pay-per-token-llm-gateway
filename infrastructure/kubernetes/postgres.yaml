@@ -1,0 +1,87 @@
+# ── PostgreSQL StatefulSet ──────────────────────────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: x402-postgres
+  namespace: x402-gateway
+  labels:
+    app.kubernetes.io/name: x402-postgres
+    app.kubernetes.io/part-of: pay-per-token-llm-gateway
+spec:
+  serviceName: x402-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: x402-postgres
+  template:
+    metadata:
+      labels:
+        app: x402-postgres
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: "x402_gateway"
+            - name: POSTGRES_USER
+              value: "x402"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: x402-secrets
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "x402", "-d", "x402_gateway"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "x402", "-d", "x402_gateway"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: standard
+---
+# ── PostgreSQL Headless Service ────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: x402-postgres
+  namespace: x402-gateway
+  labels:
+    app.kubernetes.io/name: x402-postgres
+    app.kubernetes.io/part-of: pay-per-token-llm-gateway
+spec:
+  clusterIP: None
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app: x402-postgres

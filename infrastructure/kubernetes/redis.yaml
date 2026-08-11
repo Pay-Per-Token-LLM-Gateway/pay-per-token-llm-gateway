@@ -1,0 +1,77 @@
+# ── Redis StatefulSet ──────────────────────────────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: x402-redis
+  namespace: x402-gateway
+  labels:
+    app.kubernetes.io/name: x402-redis
+    app.kubernetes.io/part-of: pay-per-token-llm-gateway
+spec:
+  serviceName: x402-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: x402-redis
+  template:
+    metadata:
+      labels:
+        app: x402-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - containerPort: 6379
+              name: redis
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: standard
+---
+# ── Redis Headless Service ─────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: x402-redis
+  namespace: x402-gateway
+  labels:
+    app.kubernetes.io/name: x402-redis
+    app.kubernetes.io/part-of: pay-per-token-llm-gateway
+spec:
+  clusterIP: None
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  selector:
+    app: x402-redis

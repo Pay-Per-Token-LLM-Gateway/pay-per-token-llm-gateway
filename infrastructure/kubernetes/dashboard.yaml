@@ -1,0 +1,81 @@
+# ── Dashboard Deployment ───────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x402-dashboard
+  namespace: x402-gateway
+  labels:
+    app.kubernetes.io/name: x402-dashboard
+    app.kubernetes.io/part-of: pay-per-token-llm-gateway
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: x402-dashboard
+  template:
+    metadata:
+      labels:
+        app: x402-dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: pay-per-token-llm-gateway/dashboard:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3001
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: NEXT_PUBLIC_GATEWAY_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: x402-config
+                  key: NEXT_PUBLIC_GATEWAY_URL
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3001
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+---
+# ── Dashboard Service ──────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: x402-dashboard
+  namespace: x402-gateway
+  labels:
+    app.kubernetes.io/name: x402-dashboard
+    app.kubernetes.io/part-of: pay-per-token-llm-gateway
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3001
+      targetPort: 3001
+      name: http
+      protocol: TCP
+  selector:
+    app: x402-dashboard

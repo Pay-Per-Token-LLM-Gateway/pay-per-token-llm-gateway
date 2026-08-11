@@ -1,0 +1,45 @@
+# ── Ingress ────────────────────────────────────────────────────
+# Routes external traffic to the gateway and dashboard Services.
+# Replace x402-gateway.example.com with your real domain and provision a TLS
+# certificate (e.g. cert-manager) referenced by the tls block below.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: x402-gateway
+  namespace: x402-gateway
+  labels:
+    app.kubernetes.io/name: x402-gateway
+    app.kubernetes.io/part-of: pay-per-token-llm-gateway
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    # WebSockets (gateway uses them) — keep connections alive
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - x402-gateway.example.com
+        - x402-dashboard.example.com
+      secretName: x402-tls
+  rules:
+    - host: x402-gateway.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: x402-gateway
+                port:
+                  number: 3000
+    - host: x402-dashboard.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: x402-dashboard
+                port:
+                  number: 3001
