@@ -23,8 +23,6 @@ model Provider {
 
   routes               Route[]
   payments             Payment[]
-  apiKeys              ApiKey[]
-  sessions             Session[]
   notifications        Notification[]
   prepaidCredits       PrepaidCredit[]
 
@@ -119,42 +117,6 @@ model PrepaidCredit {
 
   @@index([walletId])
   @@index([providerId])
-}
-
-// ── API Keys (for provider dashboard) ────────
-
-model ApiKey {
-  id          String    @id @default(uuid())
-  providerId  String
-  keyHash     String    @unique
-  name        String
-  permissions String[]  @default(["read"])
-  lastUsedAt  DateTime?
-  expiresAt   DateTime?
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  provider    Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  @@index([providerId])
-  @@index([keyHash])
-}
-
-// ── Sessions ─────────────────────────────────
-
-model Session {
-  id          String   @id @default(uuid())
-  providerId  String
-  token       String   @unique
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-
-  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  @@index([providerId])
-  @@index([token])
-  @@index([expiresAt])
 }
 
 // ── Notifications ────────────────────────────
