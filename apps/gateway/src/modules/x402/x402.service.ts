@@ -46,6 +46,7 @@ export class X402Service {
       quoteExpirySeconds: config.payment.quoteExpirySeconds,
       usdcIssuer: config.payment.usdcIssuer,
       estimatedTokens,
+      minPaymentAmount: config.payment.minPaymentAmount,
     });
 
     logger.info('Quote generated', { quoteId: quote.id, route: route.path, providerAddress });
@@ -119,6 +120,7 @@ export class X402Service {
       horizonUrl: config.stellar.horizonUrl,
       sorobanRpcUrl: config.stellar.sorobanRpcUrl,
       networkPassphrase: config.stellar.networkPassphrase,
+      minPaymentAmount: config.payment.minPaymentAmount,
     });
 
     if (verification.verified) {

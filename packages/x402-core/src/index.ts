@@ -27,10 +27,13 @@ export interface QuoteGeneratorOptions {
   usdcIssuer: string;
   /** Estimated max tokens for per-token pricing (from request max_tokens) */
   estimatedTokens?: number;
+  /** Minimum payment amount in stroops (defaults to 10000) */
+  minPaymentAmount?: string;
 }
 
 /** Default token estimate when max_tokens is not specified */
 const DEFAULT_TOKEN_ESTIMATE = 4096;
+const DEFAULT_MIN_PAYMENT_AMOUNT = '10000';
 
 /**
  * Generate a payment quote for a given route configuration.
@@ -56,6 +59,12 @@ export function generateQuote(options: QuoteGeneratorOptions): Quote {
   } else {
     // Flat: charge flat price
     amount = options.route.flatPrice || '0';
+  }
+
+  // Enforce minimum payment amount
+  const minAmount = BigInt(options.minPaymentAmount || DEFAULT_MIN_PAYMENT_AMOUNT);
+  if (BigInt(amount) < minAmount) {
+    amount = minAmount.toString();
   }
 
   // MEMO_TEXT is limited to 28 bytes. Derive a deterministic short memo from
@@ -130,6 +139,8 @@ export interface VerifyPaymentOptions {
   horizonUrl: string;
   sorobanRpcUrl: string;
   networkPassphrase: string;
+  /** Minimum payment amount in stroops (defaults to 10000) */
+  minPaymentAmount?: string;
 }
 
 /**
@@ -144,6 +155,7 @@ export async function verifyStellarPayment(
   options: VerifyPaymentOptions,
 ): Promise<PaymentVerification> {
   const { txHash, quote, horizonUrl } = options;
+  const minAmount = BigInt(options.minPaymentAmount || DEFAULT_MIN_PAYMENT_AMOUNT);
 
   logger.info('Verifying payment', { txHash, quoteId: quote.id });
 
@@ -225,6 +237,9 @@ export async function verifyStellarPayment(
       } else {
         // Flat: exact amount match (both sides in stroops)
         requiredAmount = BigInt(quote.amount);
+      }
+      if (requiredAmount < minAmount) {
+        requiredAmount = minAmount;
       }
     } catch {
       // Malformed quote price → nothing can match

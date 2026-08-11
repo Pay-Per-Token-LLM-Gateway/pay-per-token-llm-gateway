@@ -263,7 +263,7 @@ export function loadConfig(): GatewayConfig {
       usdcIssuer:
         process.env.USDC_ISSUER || 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
       quoteExpirySeconds: parseInt(process.env.QUOTE_EXPIRY_SECONDS || '300', 10),
-      minPaymentAmount: process.env.MIN_PAYMENT_AMOUNT || '10000', // 0.00001 XLM in stroops
+      minPaymentAmount: process.env.MIN_PAYMENT_AMOUNT || '10000', // 10000 stroops (0.001 XLM)
       contractAdminSecret: process.env.CONTRACT_ADMIN_SECRET || undefined,
     },
 
