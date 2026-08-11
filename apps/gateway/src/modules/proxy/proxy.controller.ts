@@ -320,10 +320,14 @@ export class ProxyController {
     // concurrent request already consumed this hash (single-use invariant)
     // — in that case the caller must NOT receive LLM access.
     const claimResult = existingPayment
-      ? await this.paymentsService.confirmPayment(existingPayment.quoteId, verification)
+      ? await this.paymentsService.confirmPayment(existingPayment.quoteId, verification, route.path)
       : await (async () => {
           await this.paymentsService.createPendingPayment(quoteForVerification, route);
-          return this.paymentsService.confirmPayment(quoteForVerification.id, verification);
+          return this.paymentsService.confirmPayment(
+            quoteForVerification.id,
+            verification,
+            route.path,
+          );
         })();
 
     if (!claimResult) {
@@ -337,6 +341,12 @@ export class ProxyController {
         message: 'This payment has already been used. A new payment is required.',
       });
       return false;
+    }
+
+    // Bounty #46: return the payment receipt in a X-Payment-Receipt header
+    // when the request was routed through /proxy.
+    if (route.path.startsWith('/proxy')) {
+      res.setHeader('X-Payment-Receipt', JSON.stringify(claimResult));
     }
 
     await this.adminService.writeAuditLog({
