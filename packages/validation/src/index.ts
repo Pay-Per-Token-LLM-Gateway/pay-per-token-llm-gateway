@@ -8,6 +8,10 @@ import { z } from 'zod';
 
 export const stellarAddressSchema = z.string().regex(/^G[A-Z2-7]{55}$/, 'Invalid Stellar address');
 
+/** Payout wallet address schema — same format as stellarAddressSchema but
+ * additionally must differ from the auth wallet (runtime check in service layer). */
+export const payoutWalletAddressSchema = stellarAddressSchema;
+
 export const txHashSchema = z.string().regex(/^[a-f0-9]{64}$/i, 'Invalid transaction hash');
 
 export const paymentAssetSchema = z.enum(['USDC', 'XLM']);
@@ -87,7 +91,10 @@ export const providerSchema = z.object({
   metadata: z.record(z.string()).optional(),
 });
 
-/** Create-provider payload (ownership always comes from the auth wallet). */
+/** Create-provider payload (ownership always comes from the auth wallet).
+ * payoutWalletAddress is validated at runtime for:
+ * 1. Stellar Ed25519 public key checksum (StrKey.isValidEd25519PublicKey)
+ * 2. Must differ from the authenticated wallet address */
 export const providerCreateSchema = providerSchema.omit({ walletAddress: true });
 
 /** Update-provider payload — every field optional. */
