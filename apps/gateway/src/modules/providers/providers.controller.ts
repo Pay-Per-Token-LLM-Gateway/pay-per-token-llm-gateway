@@ -68,6 +68,12 @@ export class ProvidersController {
     return this.providersService.update(id, parsed.data, wallet);
   }
 
+  @Post(':id/approve')
+  @ApiOperation({ summary: 'Approve a provider (admin: set active=true)' })
+  async approve(@Param('id') id: string, @CurrentWallet() wallet: string) {
+    return this.providersService.approve(id, wallet);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete provider (must be owned by the caller)' })
