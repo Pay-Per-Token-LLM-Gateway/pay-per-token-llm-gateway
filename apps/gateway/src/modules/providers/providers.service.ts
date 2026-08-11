@@ -2,6 +2,8 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { prisma } from '@x402/database';
 import { logger } from '@x402/logger';
 import { validateWebhookUrl } from '../webhooks/webhooks.service';
+import { getConfig } from '@x402/config';
+import { StrKey } from '@stellar/stellar-sdk';
 import type { Provider } from '@x402/types';
 
 /**
@@ -75,6 +77,26 @@ export class ProvidersService {
     },
     ownerAddress: string,
   ): Promise<Provider> {
+    // ── Payout address validation ──────────────────────────────
+    if (data.payoutWalletAddress) {
+      // 1. Stellar Ed25519 public key checksum validation
+      if (!StrKey.isValidEd25519PublicKey(data.payoutWalletAddress)) {
+        throw new BadRequestException(
+          `Invalid payout wallet address: "${data.payoutWalletAddress}" is not a valid Stellar Ed25519 public key`,
+        );
+      }
+      // 2. Payout wallet must differ from the auth wallet by default
+      if (data.payoutWalletAddress === ownerAddress) {
+        throw new BadRequestException(
+          'Payout wallet address must be different from the authenticated wallet address',
+        );
+      }
+    }
+
+    // ── Approval gating ──────────────────────────────────────────
+    const config = getConfig();
+    const startActive = !config.security.providerApprovalRequired;
+
     const p = await prisma.provider.create({
       data: {
         name: data.name,
@@ -83,6 +105,7 @@ export class ProvidersService {
         webhookUrl: await this.normalizeWebhookUrl(data.webhookUrl, false),
         webhookSecret: data.webhookSecret || null,
         metadata: data.metadata || {},
+        active: startActive,
       },
     });
 
@@ -149,6 +172,25 @@ export class ProvidersService {
   async findByWalletAddress(address: string): Promise<Provider | null> {
     const p = await prisma.provider.findFirst({ where: { walletAddress: address } });
     if (!p) return null;
+    return toProviderResponse(p);
+  }
+
+  /**
+   * Approve a provider (admin-only: set active=true).
+   * Only the provider owner can approve their own provider.
+   */
+  async approve(id: string, ownerAddress: string): Promise<Provider> {
+    const existing = await prisma.provider.findFirst({
+      where: { id, walletAddress: ownerAddress },
+    });
+    if (!existing) throw new NotFoundException(`Provider ${id} not found`);
+
+    const p = await prisma.provider.update({
+      where: { id },
+      data: { active: true },
+    });
+
+    logger.info('Provider approved', { providerId: id, name: p.name });
     return toProviderResponse(p);
   }
 }
