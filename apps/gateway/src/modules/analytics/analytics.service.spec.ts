@@ -14,6 +14,7 @@ jest.mock('@x402/database', () => ({
     provider: {
       findMany: jest.fn(),
     },
+    $queryRaw: jest.fn(),
   },
 }));
 
@@ -243,7 +244,7 @@ describe('AnalyticsService', () => {
       jest.useRealTimers();
     });
 
-    it('builds buckets and aggregates events into them', async () => {
+    it('builds buckets and aggregates events into them using SQL', async () => {
       mockOwnedProviders();
       const now = new Date('2026-08-10T12:00:00.000Z');
       jest.useFakeTimers({ now });
@@ -252,24 +253,16 @@ describe('AnalyticsService', () => {
       const start = startTime.getTime();
       const hour = 60 * 60 * 1000;
 
-      (mockPrisma.analyticsEvent.findMany as jest.Mock).mockResolvedValue([
-        { type: 'request:paid', amount: BigInt('1000000'), createdAt: new Date(start + hour) },
-        { type: 'request:paid', amount: null, createdAt: new Date(start + hour) },
-        { type: 'request:unpaid', amount: null, createdAt: new Date(start + 2 * hour) },
-        { type: 'payment:failed', amount: null, createdAt: new Date(start + 3 * hour) },
-        // No matching switch case — ignored
-        { type: 'payment:verified', amount: null, createdAt: new Date(start + 3 * hour) },
-        // Outside the time window — skipped
-        { type: 'request:paid', amount: BigInt('500000'), createdAt: new Date(start - hour) },
+      (mockPrisma.$queryRaw as jest.Mock).mockResolvedValue([
+        { bucket: new Date(start + hour), type: 'request:paid', count: 2, revenue: '1000000' },
+        { bucket: new Date(start + 2 * hour), type: 'request:unpaid', count: 1, revenue: '0' },
+        { bucket: new Date(start + 3 * hour), type: 'payment:failed', count: 1, revenue: '0' },
       ]);
 
       const series = await service.getTimeSeries(providerId, OWNER, 60, 24);
 
-      expect(mockPrisma.analyticsEvent.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { providerId, createdAt: { gte: startTime } },
-        }),
-      );
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(mockPrisma.analyticsEvent.findMany).not.toHaveBeenCalled();
       expect(series).toHaveLength(25);
 
       const bucket1 = series.find((p) => p.timestamp === new Date(start + hour).toISOString());
