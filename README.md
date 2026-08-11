@@ -222,8 +222,6 @@ x402-llm-gateway/
 | `Payment`        | Payment records with on-chain verification data    |
 | `Wallet`         | Stellar wallet addresses                           |
 | `PrepaidCredit`  | Escrow balances for credit-based billing (v2)      |
-| `ApiKey`         | Provider API keys for dashboard access             |
-| `Session`        | Auth sessions with JWT tokens                      |
 | `Notification`   | Delivered notification records                     |
 | `AnalyticsEvent` | Request and payment events for analytics           |
 | `AuditLog`       | Immutable audit trail of all operations            |
