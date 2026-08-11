@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Trash2, Power, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Power, Loader2, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 import {
   useProvider,
@@ -10,8 +10,11 @@ import {
   useDeleteRoute,
 } from '@/lib/hooks';
 import type { RouteResponse } from '@/lib/api';
+import { ErrorBoundary } from '@/components/common/error-boundary';
+import { ErrorDisplay } from '@/components/common/error-display';
+import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 
-export default function RoutesPage() {
+function RoutesContent() {
   const [showAdd, setShowAdd] = useState(false);
   const { data: routes, isLoading, isError, error, refetch } = useRoutes();
   const deleteMutation = useDeleteRoute();
@@ -38,23 +41,12 @@ export default function RoutesPage() {
             <p className="text-muted-foreground mt-1">Manage protected LLM endpoints and pricing</p>
           </div>
         </div>
-        <div className="card border-red-800/30 bg-red-950/10">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-medium text-red-400">Failed to load routes</h3>
-              <p className="text-sm text-muted-foreground mt-1">{(error as Error).message}</p>
-              <button
-                onClick={() => refetch()}
-                className="inline-flex items-center gap-1.5 mt-2 text-sm text-green-400 hover:text-green-300 transition-colors"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Retry
-              </button>
-            </div>
-          </div>
-        </div>
+        <ErrorDisplay
+          title="Failed to load routes"
+          message={(error as Error).message}
+          onRetry={() => refetch()}
+          variant="data-fetch"
+        />
       </div>
     );
   }
@@ -101,10 +93,7 @@ export default function RoutesPage() {
 
       <div className="card overflow-hidden">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading routes...</p>
-          </div>
+          <LoadingSkeleton variant="table" rows={5} />
         ) : routeList.length === 0 ? (
           <p className="text-muted-foreground text-sm py-8 text-center">
             No routes configured. Add your first route.
@@ -425,5 +414,13 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
         </div>
       </form>
     </div>
+  );
+}
+
+export default function RoutesPage() {
+  return (
+    <ErrorBoundary>
+      <RoutesContent />
+    </ErrorBoundary>
   );
 }

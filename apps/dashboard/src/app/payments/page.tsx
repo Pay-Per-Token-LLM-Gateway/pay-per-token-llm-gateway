@@ -1,10 +1,13 @@
 'use client';
 
-import { ExternalLink, Copy, Check, Loader2 } from 'lucide-react';
+import { ExternalLink, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { usePayments } from '@/lib/hooks';
+import { ErrorBoundary } from '@/components/common/error-boundary';
+import { ErrorDisplay } from '@/components/common/error-display';
+import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 
-export default function PaymentsPage() {
+function PaymentsContent() {
   const [page, setPage] = useState(1);
   const [copied, setCopied] = useState<string | null>(null);
   const { data, isLoading, isError, error, isFetching } = usePayments({ page, limit: 20 });
@@ -27,9 +30,11 @@ export default function PaymentsPage() {
             All payment transactions processed by the gateway
           </p>
         </div>
-        <div className="card">
-          <p className="text-red-400">Failed to load: {(error as Error).message}</p>
-        </div>
+        <ErrorDisplay
+          title="Failed to load payments"
+          message={(error as Error).message}
+          variant="data-fetch"
+        />
       </div>
     );
   }
@@ -47,10 +52,7 @@ export default function PaymentsPage() {
 
       <div className="card overflow-hidden">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading payments...</p>
-          </div>
+          <LoadingSkeleton variant="table" rows={5} />
         ) : payments.length === 0 ? (
           <p className="text-muted-foreground text-sm py-8 text-center">No payments yet</p>
         ) : (
@@ -161,5 +163,13 @@ export default function PaymentsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PaymentsPage() {
+  return (
+    <ErrorBoundary>
+      <PaymentsContent />
+    </ErrorBoundary>
   );
 }

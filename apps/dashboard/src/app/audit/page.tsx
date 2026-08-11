@@ -1,10 +1,13 @@
 'use client';
 
-import { Shield, FileText, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Shield, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { useAuditLogs } from '@/lib/hooks';
+import { ErrorBoundary } from '@/components/common/error-boundary';
+import { ErrorDisplay } from '@/components/common/error-display';
+import { LoadingSkeleton } from '@/components/common/loading-skeleton';
 
-export default function AuditPage() {
+function AuditContent() {
   const [page, setPage] = useState(1);
   const { data, isLoading, isError, error, isFetching, refetch } = useAuditLogs({
     page,
@@ -21,31 +24,17 @@ export default function AuditPage() {
       </div>
 
       {isError && (
-        <div className="card border-red-800/30 bg-red-950/10">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-medium text-red-400">Failed to load audit logs</h3>
-              <p className="text-sm text-muted-foreground mt-1">{(error as Error).message}</p>
-              <button
-                onClick={() => refetch()}
-                className="inline-flex items-center gap-1.5 mt-2 text-sm text-green-400 hover:text-green-300 transition-colors"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Retry
-              </button>
-            </div>
-          </div>
-        </div>
+        <ErrorDisplay
+          title="Failed to load audit logs"
+          message={(error as Error).message}
+          onRetry={() => refetch()}
+          variant="data-fetch"
+        />
       )}
 
       <div className="card">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading audit logs...</p>
-          </div>
+          <LoadingSkeleton variant="table" rows={5} />
         ) : logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-4">
             <div className="p-3 bg-gray-800 rounded-full">
@@ -130,5 +119,13 @@ export default function AuditPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AuditPage() {
+  return (
+    <ErrorBoundary>
+      <AuditContent />
+    </ErrorBoundary>
   );
 }
