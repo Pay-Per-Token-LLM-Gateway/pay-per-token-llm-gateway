@@ -1,0 +1,25 @@
+# Kustomization — deploy the whole stack with a single command:
+#   kubectl apply -k infrastructure/kubernetes
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: x402-gateway
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - postgres.yaml
+  - redis.yaml
+  - gateway.yaml
+  - dashboard.yaml
+  - ingress.yaml
+
+# Typical images are set in each manifest; override per environment here if needed.
+images:
+  - name: pay-per-token-llm-gateway/gateway
+    newName: ghcr.io/pay-per-token-llm-gateway/gateway
+    newTag: latest
+  - name: pay-per-token-llm-gateway/dashboard
+    newName: ghcr.io/pay-per-token-llm-gateway/dashboard
+    newTag: latest

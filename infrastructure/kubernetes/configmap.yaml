@@ -1,0 +1,23 @@
+# Non-sensitive, shared configuration for the gateway, dashboard, PostgreSQL and Redis.
+# Secrets are stored separately in `secret.yaml` (see `kubectl create secret` comments there).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x402-config
+  namespace: x402-gateway
+  labels:
+    app.kubernetes.io/name: x402-config
+    app.kubernetes.io/part-of: pay-per-token-llm-gateway
+data:
+  # ── Gateway ──────────────────────────────────────────────
+  NODE_ENV: "production"
+  PORT: "3000"
+  HOST: "0.0.0.0"
+  STELLAR_NETWORK: "testnet"
+  HORIZON_URL: "https://horizon-testnet.stellar.org"
+  SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org"
+  USDC_ISSUER: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+  CORS_ORIGINS: "https://x402-dashboard.example.com,http://localhost:3001"
+
+  # ── Dashboard ────────────────────────────────────────────
+  NEXT_PUBLIC_GATEWAY_URL: "http://x402-gateway:3000"
