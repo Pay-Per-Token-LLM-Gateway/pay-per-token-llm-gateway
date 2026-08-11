@@ -36,13 +36,22 @@ export class RateLimitGuard implements CanActivate {
     // The paid tier is only granted when the payment hash has actually been
     // CONFIRMED — the mere presence of a (possibly fake) header must never
     // raise the limit, or the paid tier is trivially spoofable.
-    const isConfirmed = await this.isConfirmedPayment(txHash);
+    const paymentInfo = await this.isConfirmedPayment(txHash);
 
-    if (isConfirmed) {
+    if (paymentInfo) {
+      // When RATE_LIMIT_BY_WALLET is enabled, key the paid tier by the
+      // payer's Stellar wallet address instead of IP. This prevents
+      // IP-rotation attacks on the paid tier when the gateway is directly
+      // exposed without a reverse proxy.
+      const paidCallerId =
+        config.security.rateLimitByWallet && paymentInfo.payerAddress
+          ? paymentInfo.payerAddress
+          : callerId;
+
       // Confirmed payments get a higher, separate rate limit
       const paidWindow = config.redis.rateLimitWindow * 2; // e.g. 120s
       const paidMax = config.redis.rateLimitMax * 10; // e.g. 100 requests/window
-      return this.checkLimit(callerId, paidWindow, paidMax, 'paid');
+      return this.checkLimit(paidCallerId, paidWindow, paidMax, 'paid');
     }
 
     // Unpaid requests: strict limit to prevent 402 quote-spam
@@ -52,19 +61,21 @@ export class RateLimitGuard implements CanActivate {
   }
 
   /** True when the header carries a txHash with a confirmed payment row. */
-  private async isConfirmedPayment(txHash: string | undefined): Promise<boolean> {
-    if (!txHash || !/^[a-f0-9]{64}$/i.test(txHash)) return false;
+  private async isConfirmedPayment(
+    txHash: string | undefined,
+  ): Promise<{ id: string; payerAddress: string | null } | null> {
+    if (!txHash || !/^[a-f0-9]{64}$/i.test(txHash)) return null;
     try {
       const payment = await this.prisma.payment.findFirst({
         where: { txHash, status: 'confirmed' },
-        select: { id: true },
+        select: { id: true, payerAddress: true },
       });
-      return !!payment;
+      return payment;
     } catch (error) {
       this.logger.warn('Rate limit payment check failed, using unpaid tier', {
         error: String(error),
       });
-      return false;
+      return null;
     }
   }
 
