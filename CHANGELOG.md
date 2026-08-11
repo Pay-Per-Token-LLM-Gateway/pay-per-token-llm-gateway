@@ -4,6 +4,21 @@ All notable changes to the x402 LLM Gateway project.
 
 ---
 
+## [Unreleased]
+
+### Added
+- Initial project structure and documentation
+
+### Changed
+- N/A
+
+### Fixed
+- N/A
+
+---
+
+## [0.1.0] — 2026-08-11
+
 ## [0.1.0] — 2026-08-11
 
 ### Added
