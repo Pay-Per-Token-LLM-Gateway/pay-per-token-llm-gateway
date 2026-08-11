@@ -15,7 +15,7 @@ export class AnalyticsService {
       where: { walletAddress: ownerAddress },
       select: { id: true },
     });
-    return providers.map((p) => p.id);
+    return providers.map((p: any) => p.id);
   }
 
   /** Record an unpaid (402) request event. */
@@ -156,7 +156,7 @@ export class AnalyticsService {
       take: 10,
     });
 
-    const topCallers = topCallerRows.map((row) => ({
+    const topCallers = topCallerRows.map((row: any) => ({
       address: row.callerAddress ?? 'unknown',
       totalSpent: (row._sum.amount || 0n).toString(),
       requestCount: row._count.id,
@@ -172,7 +172,7 @@ export class AnalyticsService {
       take: 10,
     });
 
-    const topRoutes = topRouteRows.map((row) => ({
+    const topRoutes = topRouteRows.map((row: any) => ({
       path: row.route,
       requestCount: row._count.id,
       revenue: (row._sum.amount || 0n).toString(),
@@ -296,7 +296,7 @@ export class AnalyticsService {
       take: filter?.limit || 100,
     });
 
-    return rows.map((r) => ({
+    return rows.map((r: any) => ({
       type: r.type as AnalyticsEvent['type'],
       route: r.route,
       providerId: r.providerId,
