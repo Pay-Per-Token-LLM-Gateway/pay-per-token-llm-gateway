@@ -51,19 +51,32 @@ export function generateQuote(options: QuoteGeneratorOptions): Quote {
   let estimatedMaxTokens: number | undefined;
   let perTokenPrice: string | undefined;
 
+  // Safe BigInt parser helper
+  const parseBigIntSafe = (val: string | undefined, fallback: bigint): bigint => {
+    if (!val) return fallback;
+    try {
+      return BigInt(val);
+    } catch {
+      return fallback;
+    }
+  };
+
   if (options.route.pricingModel === 'per_token' && options.route.perTokenPrice) {
     // Per-token: charge estimated deposit
     perTokenPrice = options.route.perTokenPrice;
     estimatedMaxTokens = options.estimatedTokens || DEFAULT_TOKEN_ESTIMATE;
-    amount = (BigInt(options.route.perTokenPrice) * BigInt(estimatedMaxTokens)).toString();
+    const priceBI = parseBigIntSafe(options.route.perTokenPrice, 0n);
+    amount = (priceBI * BigInt(estimatedMaxTokens)).toString();
   } else {
     // Flat: charge flat price
     amount = options.route.flatPrice || '0';
   }
 
   // Enforce minimum payment amount
-  const minAmount = BigInt(options.minPaymentAmount || DEFAULT_MIN_PAYMENT_AMOUNT);
-  if (BigInt(amount) < minAmount) {
+  const defaultMinBI = parseBigIntSafe(DEFAULT_MIN_PAYMENT_AMOUNT, 10000n);
+  const minAmount = parseBigIntSafe(options.minPaymentAmount, defaultMinBI);
+  const currentAmountBI = parseBigIntSafe(amount, 0n);
+  if (currentAmountBI < minAmount) {
     amount = minAmount.toString();
   }
 
@@ -155,7 +168,6 @@ export async function verifyStellarPayment(
   options: VerifyPaymentOptions,
 ): Promise<PaymentVerification> {
   const { txHash, quote, horizonUrl } = options;
-  const minAmount = BigInt(options.minPaymentAmount || DEFAULT_MIN_PAYMENT_AMOUNT);
 
   logger.info('Verifying payment', { txHash, quoteId: quote.id });
 
@@ -237,6 +249,13 @@ export async function verifyStellarPayment(
       } else {
         // Flat: exact amount match (both sides in stroops)
         requiredAmount = BigInt(quote.amount);
+      }
+      let minAmount = 10000n;
+      try {
+        minAmount = BigInt(options.minPaymentAmount || DEFAULT_MIN_PAYMENT_AMOUNT);
+      } catch {
+        // Fall back to default minimum if misconfigured
+        minAmount = 10000n;
       }
       if (requiredAmount < minAmount) {
         requiredAmount = minAmount;

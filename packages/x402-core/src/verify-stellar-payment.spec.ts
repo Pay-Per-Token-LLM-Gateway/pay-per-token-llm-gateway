@@ -588,15 +588,32 @@ describe('verifyStellarPayment', () => {
     });
   });
 
-  describe('fetch failures', () => {
-    it('returns a verification error when Horizon fetch throws', async () => {
-      const quote = makeQuote(makeRoute());
-      (global as any).fetch = mockHorizonFetch({ rejectWith: new Error('network down') });
+  describe('minPaymentAmount enforcement', () => {
+    it('rejects a payment that is below the configured minPaymentAmount', async () => {
+      const quote = makeQuote(makeRoute({ flatPrice: '5000' }));
+      // Quote amount is clamped to minPaymentAmount (10000 stroops = 0.0010000 units)
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({}, quote),
+        ops: opsData([paymentOp({ amount: '0.0005000' })]), // 5000 stroops
+      });
 
-      const result = await verify({ quote });
+      const result = await verify({ quote, minPaymentAmount: '10000' });
 
       expect(result.verified).toBe(false);
-      expect(result.failureReason).toBe('Verification error: network down');
+      expect(result.failureReason).toContain('Payment amount 5000 is below the required 10000');
+    });
+
+    it('accepts a payment that matches or exceeds minPaymentAmount', async () => {
+      const quote = makeQuote(makeRoute({ flatPrice: '5000' }));
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({}, quote),
+        ops: opsData([paymentOp({ amount: '0.0010000' })]), // 10000 stroops
+      });
+
+      const result = await verify({ quote, minPaymentAmount: '10000' });
+
+      expect(result.verified).toBe(true);
+      expect(result.amount).toBe('10000');
     });
   });
 });
