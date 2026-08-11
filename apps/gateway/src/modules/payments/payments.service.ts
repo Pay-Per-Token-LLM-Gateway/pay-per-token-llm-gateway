@@ -1,3 +1,6 @@
+// Author: RawNuke
+// Copyright (c) 2026 RawNuke. All rights reserved.
+
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@x402/database';
 import { logger } from '@x402/logger';
@@ -71,11 +74,25 @@ export class PaymentsService {
       payerAddress: verification.payerAddress,
       amount: verification.amount,
       asset: verification.asset,
-      route: '', // populated by the caller if the quote/route is known
+      route: '', // resolved from the payment's route before the claim
       status: 'confirmed',
       verifiedAt: new Date(verification.timestamp * 1000).toISOString(),
       ledger: verification.ledger,
     };
+
+    // Resolve the route path from the pending payment before the claim.
+    const payment = await prisma.payment.findFirst({
+      where: { quoteId },
+      include: { route: true },
+    });
+
+    if (!payment) {
+      // The row never existed — this caller lost the claim.
+      logger.warn('Payment claim lost (payment not found)', { quoteId });
+      return null;
+    }
+
+    receipt.route = payment.route?.path ?? '';
 
     try {
       const result = await prisma.payment.updateMany({

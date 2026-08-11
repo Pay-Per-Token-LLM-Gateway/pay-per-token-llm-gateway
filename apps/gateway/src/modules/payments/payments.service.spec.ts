@@ -1,3 +1,6 @@
+// Author: RawNuke
+// Copyright (c) 2026 RawNuke. All rights reserved.
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
@@ -111,9 +114,21 @@ describe('PaymentsService', () => {
   });
 
   describe('confirmPayment (atomic single-use claim)', () => {
+    function mockPaymentWithRoute() {
+      (mockPrisma.payment.findFirst as jest.Mock).mockResolvedValue({
+        quoteId: 'quote-1',
+        routeId: 'route-1',
+        route: {
+          id: 'route-1',
+          providerId: 'provider-1',
+          path: '/v1/chat/completions',
+        },
+      });
+    }
+
     it('confirms payment and returns the receipt when the claim wins', async () => {
       const verification = makeVerification();
-
+      mockPaymentWithRoute();
       (mockPrisma.payment.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const receipt = await service.confirmPayment('quote-1', verification);
@@ -133,8 +148,34 @@ describe('PaymentsService', () => {
       });
     });
 
+    it('populates the receipt route from the payment route path', async () => {
+      const verification = makeVerification();
+      mockPaymentWithRoute();
+      (mockPrisma.payment.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      const receipt = await service.confirmPayment('quote-1', verification);
+
+      expect(receipt).not.toBeNull();
+      expect(receipt!.route).toBe('/v1/chat/completions');
+      expect(mockPrisma.payment.findFirst).toHaveBeenCalledWith({
+        where: { quoteId: 'quote-1' },
+        include: { route: true },
+      });
+    });
+
+    it('returns null without claiming when the payment row is missing', async () => {
+      const verification = makeVerification();
+      (mockPrisma.payment.findFirst as jest.Mock).mockResolvedValue(null);
+
+      const receipt = await service.confirmPayment('quote-1', verification);
+
+      expect(receipt).toBeNull();
+      expect(mockPrisma.payment.updateMany).not.toHaveBeenCalled();
+    });
+
     it('returns null when the payment was already consumed (0 rows updated)', async () => {
       const verification = makeVerification();
+      mockPaymentWithRoute();
       (mockPrisma.payment.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
 
       const receipt = await service.confirmPayment('quote-1', verification);
@@ -144,6 +185,7 @@ describe('PaymentsService', () => {
 
     it('returns null on a concurrent unique-constraint violation', async () => {
       const verification = makeVerification();
+      mockPaymentWithRoute();
       const violation = new Error('Unique constraint failed on the fields: (`txHash`)');
       (mockPrisma.payment.updateMany as jest.Mock).mockRejectedValue(violation);
 
