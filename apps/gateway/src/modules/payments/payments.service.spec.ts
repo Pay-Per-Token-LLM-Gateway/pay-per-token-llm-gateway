@@ -114,6 +114,12 @@ describe('PaymentsService', () => {
     it('confirms payment and returns the receipt when the claim wins', async () => {
       const verification = makeVerification();
 
+      // Pending payment row carries its Route relation, which is how the
+      // service resolves the real route path for the receipt.
+      (mockPrisma.payment.findFirst as jest.Mock).mockResolvedValue({
+        quoteId: 'quote-1',
+        route: { path: '/v1/chat/completions' },
+      });
       (mockPrisma.payment.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const receipt = await service.confirmPayment('quote-1', verification);
@@ -123,6 +129,13 @@ describe('PaymentsService', () => {
       expect(receipt!.txHash).toBe(verification.txHash);
       expect(receipt!.payerAddress).toBe(verification.payerAddress);
       expect(receipt!.amount).toBe(verification.amount);
+      // The receipt must carry the real route path, not an empty string —
+      // this is the data-quality fix (issue #46).
+      expect(receipt!.route).toBe('/v1/chat/completions');
+      expect(mockPrisma.payment.findFirst).toHaveBeenCalledWith({
+        where: { quoteId: 'quote-1' },
+        include: { route: true },
+      });
       // The claim only touches un-consumed rows — where includes txHash: null.
       expect(mockPrisma.payment.updateMany).toHaveBeenCalledWith({
         where: { quoteId: 'quote-1', txHash: null },
@@ -135,6 +148,10 @@ describe('PaymentsService', () => {
 
     it('returns null when the payment was already consumed (0 rows updated)', async () => {
       const verification = makeVerification();
+      (mockPrisma.payment.findFirst as jest.Mock).mockResolvedValue({
+        quoteId: 'quote-1',
+        route: { path: '/v1/chat/completions' },
+      });
       (mockPrisma.payment.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
 
       const receipt = await service.confirmPayment('quote-1', verification);
@@ -145,6 +162,10 @@ describe('PaymentsService', () => {
     it('returns null on a concurrent unique-constraint violation', async () => {
       const verification = makeVerification();
       const violation = new Error('Unique constraint failed on the fields: (`txHash`)');
+      (mockPrisma.payment.findFirst as jest.Mock).mockResolvedValue({
+        quoteId: 'quote-1',
+        route: { path: '/v1/chat/completions' },
+      });
       (mockPrisma.payment.updateMany as jest.Mock).mockRejectedValue(violation);
 
       const receipt = await service.confirmPayment('quote-1', verification);
