@@ -64,6 +64,21 @@ export class PaymentsService {
     quoteId: string,
     verification: PaymentVerification,
   ): Promise<PaymentReceipt | null> {
+    // Resolve the route path from the pending payment's Route relation so the
+    // receipt reports the actually-accessed route (e.g. `/v1/chat/completions`)
+    // instead of an empty string. Previously `route` was hard-coded to `''`
+    // with a comment saying "populated by the caller" — but no caller ever
+    // populated it, so every `X-Payment-Receipt` header and stored
+    // `receiptJson` carried an empty route.
+    let routePath = '';
+    const pending = await prisma.payment.findFirst({
+      where: { quoteId },
+      include: { route: true },
+    });
+    if (pending?.route) {
+      routePath = pending.route.path;
+    }
+
     const receipt: PaymentReceipt = {
       id: quoteId,
       quoteId,
@@ -71,7 +86,7 @@ export class PaymentsService {
       payerAddress: verification.payerAddress,
       amount: verification.amount,
       asset: verification.asset,
-      route: '', // populated by the caller if the quote/route is known
+      route: routePath,
       status: 'confirmed',
       verifiedAt: new Date(verification.timestamp * 1000).toISOString(),
       ledger: verification.ledger,
@@ -181,7 +196,7 @@ export class PaymentsService {
     ]);
 
     // Serialize BigInt amounts to strings for JSON response
-    const serialized: PaymentResponse[] = payments.map((p) => ({
+    const serialized: PaymentResponse[] = payments.map((p: any) => ({
       id: p.id,
       quoteId: p.quoteId,
       txHash: p.txHash,
