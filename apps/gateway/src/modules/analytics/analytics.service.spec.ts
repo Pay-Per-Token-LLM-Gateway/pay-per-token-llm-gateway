@@ -4,6 +4,7 @@ import { AnalyticsService } from './analytics.service';
 // Mock @x402/database
 jest.mock('@x402/database', () => ({
   prisma: {
+    $queryRaw: jest.fn(),
     analyticsEvent: {
       create: jest.fn(),
       count: jest.fn(),
@@ -243,7 +244,7 @@ describe('AnalyticsService', () => {
       jest.useRealTimers();
     });
 
-    it('builds buckets and aggregates events into them', async () => {
+    it('aggregates events into buckets with a single SQL query', async () => {
       mockOwnedProviders();
       const now = new Date('2026-08-10T12:00:00.000Z');
       jest.useFakeTimers({ now });
@@ -252,24 +253,38 @@ describe('AnalyticsService', () => {
       const start = startTime.getTime();
       const hour = 60 * 60 * 1000;
 
-      (mockPrisma.analyticsEvent.findMany as jest.Mock).mockResolvedValue([
-        { type: 'request:paid', amount: BigInt('1000000'), createdAt: new Date(start + hour) },
-        { type: 'request:paid', amount: null, createdAt: new Date(start + hour) },
-        { type: 'request:unpaid', amount: null, createdAt: new Date(start + 2 * hour) },
-        { type: 'payment:failed', amount: null, createdAt: new Date(start + 3 * hour) },
-        // No matching switch case — ignored
-        { type: 'payment:verified', amount: null, createdAt: new Date(start + 3 * hour) },
-        // Outside the time window — skipped
-        { type: 'request:paid', amount: BigInt('500000'), createdAt: new Date(start - hour) },
+      // What Postgres returns: one row per populated bucket. Events of
+      // other types (e.g. payment:verified) are dropped by the SQL FILTER
+      // clauses; out-of-window events are excluded by the WHERE clause.
+      (mockPrisma.$queryRaw as jest.Mock).mockResolvedValue([
+        {
+          bucket_index: BigInt(1),
+          paid_count: 2,
+          unpaid_count: 0,
+          failed_count: 0,
+          revenue: '1000000',
+        },
+        {
+          bucket_index: BigInt(2),
+          paid_count: 0,
+          unpaid_count: 1,
+          failed_count: 0,
+          revenue: '0',
+        },
+        {
+          bucket_index: BigInt(3),
+          paid_count: 0,
+          unpaid_count: 0,
+          failed_count: 1,
+          revenue: '0',
+        },
       ]);
 
       const series = await service.getTimeSeries(providerId, OWNER, 60, 24);
 
-      expect(mockPrisma.analyticsEvent.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { providerId, createdAt: { gte: startTime } },
-        }),
-      );
+      // One aggregation query — no unbounded findMany of every event.
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.analyticsEvent.findMany).not.toHaveBeenCalled();
       expect(series).toHaveLength(25);
 
       const bucket1 = series.find((p) => p.timestamp === new Date(start + hour).toISOString());
@@ -284,9 +299,41 @@ describe('AnalyticsService', () => {
       expect(bucket3?.failedVerifications).toBe(1);
       expect(bucket3?.paidRequests).toBe(0);
 
+      // Buckets without events stay zero-filled
+      const bucket0 = series.find((p) => p.timestamp === startTime.toISOString());
+      expect(bucket0).toEqual({
+        timestamp: startTime.toISOString(),
+        paidRequests: 0,
+        unpaidRequests: 0,
+        revenue: '0',
+        failedVerifications: 0,
+      });
+
       // Sorted chronologically
       const timestamps = series.map((p) => p.timestamp);
       expect([...timestamps].sort()).toEqual(timestamps);
+    });
+
+    it('returns zero-filled buckets for an empty window', async () => {
+      mockOwnedProviders();
+      const now = new Date('2026-08-10T12:00:00.000Z');
+      jest.useFakeTimers({ now });
+
+      (mockPrisma.$queryRaw as jest.Mock).mockResolvedValue([]);
+
+      const series = await service.getTimeSeries(providerId, OWNER, 60, 24);
+
+      expect(mockPrisma.analyticsEvent.findMany).not.toHaveBeenCalled();
+      expect(series).toHaveLength(25);
+      for (const point of series) {
+        expect(point).toEqual({
+          timestamp: point.timestamp,
+          paidRequests: 0,
+          unpaidRequests: 0,
+          revenue: '0',
+          failedVerifications: 0,
+        });
+      }
     });
 
     it('throws NotFoundException for a provider the wallet does not own', async () => {
@@ -295,6 +342,7 @@ describe('AnalyticsService', () => {
       await expect(service.getTimeSeries('provider-3', OTHER_OWNER, 60, 24)).rejects.toThrow(
         NotFoundException,
       );
+      expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
       expect(mockPrisma.analyticsEvent.findMany).not.toHaveBeenCalled();
     });
   });

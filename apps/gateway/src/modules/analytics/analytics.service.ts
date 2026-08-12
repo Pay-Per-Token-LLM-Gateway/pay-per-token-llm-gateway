@@ -3,6 +3,15 @@ import { prisma } from '@x402/database';
 import type { AnalyticsEvent } from '@x402/analytics';
 import type { AnalyticsSummary, TimeSeriesDataPoint } from '@x402/types';
 
+/** One row from the SQL time-series aggregation (see `getTimeSeries`). */
+interface AnalyticsBucketRow {
+  bucket_index: bigint;
+  paid_count: number;
+  unpaid_count: number;
+  failed_count: number;
+  revenue: string;
+}
+
 @Injectable()
 export class AnalyticsService {
   /**
@@ -192,8 +201,15 @@ export class AnalyticsService {
   }
 
   /**
-   * Get time-series data using Prisma queries with time bucketing, scoped to
+   * Get time-series data using a single Postgres aggregation query, scoped to
    * the authenticated wallet's providers.
+   *
+   * Buckets are anchored at `startTime` (not clock boundaries) so the returned
+   * series is identical to the previous JS-side bucketing: each event lands in
+   * `startTime + floor((eventTime - startTime) / interval) * interval`. The
+   * aggregation returns one row per populated bucket; zero-filled buckets are
+   * built in JS around those rows. This avoids loading every event in the
+   * window into memory (previously unbounded `findMany`).
    */
   async getTimeSeries(
     providerId: string,
@@ -208,26 +224,29 @@ export class AnalyticsService {
 
     const now = new Date();
     const startTime = new Date(now.getTime() - durationHours * 60 * 60 * 1000);
-
-    // Fetch all events in the time window
-    const events = await prisma.analyticsEvent.findMany({
-      where: {
-        providerId,
-        createdAt: { gte: startTime },
-      },
-      select: {
-        type: true,
-        amount: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    // Build time buckets
+    const startMs = startTime.getTime();
     const intervalMs = intervalMinutes * 60 * 1000;
-    const buckets: Map<number, TimeSeriesDataPoint> = new Map();
 
-    for (let t = startTime.getTime(); t <= now.getTime(); t += intervalMs) {
+    // Bucket index per event, computed in the DB with the same integer math
+    // the JS bucketing used (floor((eventMs - startMs) / intervalMs)). Rows
+    // carry only aggregates — never the raw event list.
+    const rows = await prisma.$queryRaw<AnalyticsBucketRow[]>`
+      SELECT
+        (floor(extract(epoch FROM "createdAt") * 1000)::bigint - ${BigInt(startMs)})
+          / ${BigInt(intervalMs)} AS bucket_index,
+        COUNT(*) FILTER (WHERE "type" = 'request:paid')::int AS paid_count,
+        COUNT(*) FILTER (WHERE "type" = 'request:unpaid')::int AS unpaid_count,
+        COUNT(*) FILTER (WHERE "type" = 'payment:failed')::int AS failed_count,
+        COALESCE(SUM("amount") FILTER (WHERE "type" = 'request:paid'), 0)::text AS revenue
+      FROM "AnalyticsEvent"
+      WHERE "providerId" = ${providerId}
+        AND "createdAt" >= ${startTime}
+      GROUP BY bucket_index
+    `;
+
+    // Build the zero-filled bucket skeleton (same anchors as before)
+    const buckets: Map<number, TimeSeriesDataPoint> = new Map();
+    for (let t = startMs; t <= now.getTime(); t += intervalMs) {
       buckets.set(t, {
         timestamp: new Date(t).toISOString(),
         paidRequests: 0,
@@ -237,29 +256,18 @@ export class AnalyticsService {
       });
     }
 
-    // Fill buckets from events
-    for (const event of events) {
-      const eventTime = event.createdAt.getTime();
-      const bucketTime =
-        startTime.getTime() +
-        Math.floor((eventTime - startTime.getTime()) / intervalMs) * intervalMs;
+    // Fill buckets from the aggregated rows; rows outside the skeleton
+    // (e.g. events after `now` grouped into a trailing index) are skipped,
+    // matching the previous JS behavior.
+    for (const row of rows) {
+      const bucketTime = startMs + Number(row.bucket_index) * intervalMs;
       const bucket = buckets.get(bucketTime);
       if (!bucket) continue;
 
-      switch (event.type) {
-        case 'request:paid':
-          bucket.paidRequests++;
-          if (event.amount) {
-            bucket.revenue = (BigInt(bucket.revenue) + event.amount).toString();
-          }
-          break;
-        case 'request:unpaid':
-          bucket.unpaidRequests++;
-          break;
-        case 'payment:failed':
-          bucket.failedVerifications++;
-          break;
-      }
+      bucket.paidRequests = row.paid_count;
+      bucket.unpaidRequests = row.unpaid_count;
+      bucket.failedVerifications = row.failed_count;
+      bucket.revenue = row.revenue;
     }
 
     return Array.from(buckets.values()).sort(
