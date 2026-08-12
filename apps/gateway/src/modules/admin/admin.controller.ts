@@ -11,12 +11,6 @@ import { paginationSchema } from '@x402/validation';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  @Get('health')
-  @ApiOperation({ summary: 'Health check (authenticated)' })
-  async health() {
-    return this.adminService.getHealth();
-  }
-
   @Get('stats')
   @ApiOperation({ summary: 'Gateway statistics scoped to the authenticated wallet' })
   async stats(@CurrentWallet() wallet: string) {

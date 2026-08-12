@@ -380,7 +380,6 @@ GET    /api/v1/analytics/timeseries
 
 # Admin (all require a wallet session Bearer token)
 GET    /api/v1/admin/stats
-GET    /api/v1/admin/health
 GET    /api/v1/admin/audit   # scoped to the authenticated wallet's providers
 
 # Webhooks

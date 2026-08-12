@@ -4,15 +4,6 @@ import { logger } from '@x402/logger';
 
 @Injectable()
 export class AdminService {
-  async getHealth() {
-    return {
-      status: 'ok' as const,
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      version: '0.1.0',
-    };
-  }
-
   /**
    * Gateway statistics scoped to the authenticated wallet's providers.
    * Unscoped global counts were a cross-tenant information leak.
