@@ -2,8 +2,8 @@ import { ProxyController } from './proxy.controller';
 import { loadConfig, setConfig } from '@x402/config';
 import { logger } from '@x402/logger';
 import { settleEscrow } from '../x402/escrow-client';
-import type { PaymentRecord, RouteConfig } from '@x402/types';
-import type { Response } from 'express';
+import type { PaymentRecord, Quote, RouteConfig } from '@x402/types';
+import type { Request, Response } from 'express';
 
 // Escrow settlement is fire-and-forget by design (it must never block the
 // LLM response), so the spec stubs it and asserts on the arguments instead
@@ -262,5 +262,413 @@ describe('ProxyController.applyMeteredPricing', () => {
       expect(mockSettleEscrow).not.toHaveBeenCalled();
       expect(controller.paymentsService.recordActualCost).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ── handleChatCompletion (request flow) ──────
+
+interface FlowMocks {
+  proxyService: { forwardRequest: jest.Mock; forwardStreamRequest: jest.Mock };
+  x402Service: {
+    generateQuoteForRoute: jest.Mock;
+    build402Response: jest.Mock;
+    verifyPayment: jest.Mock;
+    isQuoteExpired: jest.Mock;
+  };
+  routesService: { findByPathAndModel: jest.Mock };
+  paymentsService: {
+    findByTxHash: jest.Mock;
+    createPendingPayment: jest.Mock;
+    confirmPayment: jest.Mock;
+    recordActualCost: jest.Mock;
+  };
+  analyticsService: { recordUnpaidRequest: jest.Mock; recordPaidRequest: jest.Mock };
+  adminService: { writeAuditLog: jest.Mock };
+  webhooksService: { notifyVerificationFailed: jest.Mock; notifyPaymentReceived: jest.Mock };
+  res: jest.Mocked<Response> & { status: jest.Mock; json: jest.Mock; write: jest.Mock };
+}
+
+function buildFlowHarness(): { controller: ProxyController; mocks: FlowMocks } {
+  const mocks: FlowMocks = {
+    proxyService: { forwardRequest: jest.fn(), forwardStreamRequest: jest.fn() },
+    x402Service: {
+      generateQuoteForRoute: jest.fn(),
+      build402Response: jest.fn(),
+      verifyPayment: jest.fn(),
+      isQuoteExpired: jest.fn(),
+    },
+    routesService: { findByPathAndModel: jest.fn() },
+    paymentsService: {
+      findByTxHash: jest.fn(),
+      createPendingPayment: jest.fn().mockResolvedValue(undefined),
+      confirmPayment: jest.fn(),
+      recordActualCost: jest.fn().mockResolvedValue(undefined),
+    },
+    analyticsService: { recordUnpaidRequest: jest.fn(), recordPaidRequest: jest.fn() },
+    adminService: { writeAuditLog: jest.fn().mockResolvedValue(undefined) },
+    webhooksService: {
+      notifyVerificationFailed: jest.fn().mockResolvedValue(undefined),
+      notifyPaymentReceived: jest.fn().mockResolvedValue(undefined),
+    },
+    res: {} as FlowMocks['res'],
+  };
+  mocks.res.status = jest.fn().mockReturnValue(mocks.res);
+  mocks.res.json = jest.fn().mockReturnValue(mocks.res);
+  mocks.res.write = jest.fn();
+  mocks.res.headersSent = false;
+  mocks.res.setHeader = jest.fn();
+
+  const controller = new ProxyController(
+    mocks.proxyService as never,
+    mocks.x402Service as never,
+    mocks.routesService as never,
+    mocks.paymentsService as never,
+    mocks.analyticsService as never,
+    mocks.adminService as never,
+    mocks.webhooksService as never,
+  );
+  return { controller, mocks };
+}
+
+function flowReq(overrides: Partial<Record<string, unknown>> = {}): Request {
+  return {
+    body: { model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] },
+    path: '/v1/chat/completions',
+    headers: {},
+    ...overrides,
+  } as unknown as Request;
+}
+
+const VALID_TX_HASH = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2';
+
+const verificationQuote: Quote = {
+  id: 'quote-1',
+  route: '/v1/chat/completions',
+  pricingModel: 'flat',
+  amount: '500',
+  asset: 'USDC',
+  paymentAddress: 'GA7QNFARKGM6Q3Q7Q3Q7Q3Q7Q3Q7Q3Q7Q3Q7Q3Q7Q3Q7Q3Q7Q3Q7Q3Q7Q',
+  expiresAt: Math.floor(Date.now() / 1000) + 300,
+  network: 'testnet',
+  statusUrl: 'https://gateway.local/payments/quote-1',
+};
+
+describe('ProxyController.handleChatCompletion', () => {
+  afterEach(() => {
+    setConfig(baseConfig);
+    jest.clearAllMocks();
+  });
+
+  it('returns 400 for an invalid request body', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(flatRoute);
+
+    await controller.handleChatCompletion(
+      flowReq({ body: { model: 'gpt-4' } }), // missing messages
+      mocks.res,
+    );
+
+    expect(mocks.res.status).toHaveBeenCalledWith(400);
+    expect(mocks.res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 400 }));
+  });
+
+  it('returns 404 when no route matches the requested model', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(null);
+
+    await controller.handleChatCompletion(flowReq(), mocks.res);
+
+    expect(mocks.res.status).toHaveBeenCalledWith(404);
+    expect(mocks.res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('No route configured') }),
+    );
+  });
+
+  it('returns 402 with a generated quote when no payment hash is present', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(flatRoute);
+    mocks.x402Service.generateQuoteForRoute.mockResolvedValue(verificationQuote);
+    mocks.x402Service.build402Response.mockResolvedValue({
+      status: 402,
+      payment: verificationQuote,
+    });
+
+    await controller.handleChatCompletion(flowReq(), mocks.res);
+
+    expect(mocks.res.status).toHaveBeenCalledWith(402);
+    expect(mocks.x402Service.generateQuoteForRoute).toHaveBeenCalledWith(flatRoute, undefined);
+    expect(mocks.paymentsService.createPendingPayment).toHaveBeenCalledWith(
+      verificationQuote,
+      flatRoute,
+    );
+    expect(mocks.analyticsService.recordUnpaidRequest).toHaveBeenCalledWith(
+      flatRoute.path,
+      flatRoute.providerId,
+    );
+    expect(mocks.adminService.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'quote_generated' }),
+    );
+    expect(mocks.res.json).toHaveBeenCalledWith({ status: 402, payment: verificationQuote });
+  });
+
+  it('passes the estimated token count into the quote for per-token routes', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(perTokenRoute);
+    mocks.x402Service.generateQuoteForRoute.mockResolvedValue(verificationQuote);
+    mocks.x402Service.build402Response.mockResolvedValue({ status: 402 });
+
+    await controller.handleChatCompletion(
+      flowReq({
+        body: { model: 'gpt-4', messages: [{ role: 'user', content: 'hi' }], max_tokens: 100 },
+      }),
+      mocks.res,
+    );
+
+    expect(mocks.x402Service.generateQuoteForRoute).toHaveBeenCalledWith(perTokenRoute, 100);
+  });
+
+  it('returns 400 for a malformed X-Payment-Hash header', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(flatRoute);
+
+    await controller.handleChatCompletion(
+      flowReq({ headers: { 'x-payment-hash': 'not-a-hex-string' } }),
+      mocks.res,
+    );
+
+    expect(mocks.res.status).toHaveBeenCalledWith(400);
+    expect(mocks.res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('Invalid X-Payment-Hash') }),
+    );
+  });
+
+  it('rejects a confirmed payment replayed against a different route', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(flatRoute);
+    mocks.paymentsService.findByTxHash.mockResolvedValue({
+      status: 'confirmed',
+      routeId: 'some-other-route',
+    });
+
+    await controller.handleChatCompletion(
+      flowReq({ headers: { 'x-payment-hash': VALID_TX_HASH } }),
+      mocks.res,
+    );
+
+    expect(mocks.res.status).toHaveBeenCalledWith(402);
+    expect(mocks.res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('different route') }),
+    );
+    expect(mocks.x402Service.verifyPayment).not.toHaveBeenCalled();
+  });
+
+  it('rejects a confirmed payment replayed on the same route', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(flatRoute);
+    mocks.paymentsService.findByTxHash.mockResolvedValue({
+      status: 'confirmed',
+      routeId: flatRoute.id,
+    });
+
+    await controller.handleChatCompletion(
+      flowReq({ headers: { 'x-payment-hash': VALID_TX_HASH } }),
+      mocks.res,
+    );
+
+    expect(mocks.res.status).toHaveBeenCalledWith(402);
+    expect(mocks.res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('already been used') }),
+    );
+  });
+
+  it('rejects a payment made with an expired stored quote', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(flatRoute);
+    mocks.paymentsService.findByTxHash.mockResolvedValue({
+      status: 'pending',
+      routeId: flatRoute.id,
+      receiptJson: verificationQuote,
+    });
+    mocks.x402Service.isQuoteExpired.mockReturnValue(true);
+
+    await controller.handleChatCompletion(
+      flowReq({ headers: { 'x-payment-hash': VALID_TX_HASH } }),
+      mocks.res,
+    );
+
+    expect(mocks.res.status).toHaveBeenCalledWith(402);
+    expect(mocks.res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('quote has expired') }),
+    );
+  });
+
+  it('returns 402 when payment verification fails and notifies the provider', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(flatRoute);
+    mocks.paymentsService.findByTxHash.mockResolvedValue(null);
+    mocks.x402Service.generateQuoteForRoute.mockResolvedValue(verificationQuote);
+    mocks.x402Service.verifyPayment.mockResolvedValue({
+      verified: false,
+      txHash: VALID_TX_HASH,
+      payerAddress: '',
+      amount: '0',
+      asset: 'USDC',
+      ledger: 0,
+      timestamp: 0,
+      failureReason: 'Insufficient amount',
+    });
+
+    await controller.handleChatCompletion(
+      flowReq({ headers: { 'x-payment-hash': VALID_TX_HASH } }),
+      mocks.res,
+    );
+
+    expect(mocks.res.status).toHaveBeenCalledWith(402);
+    expect(mocks.res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('Insufficient amount') }),
+    );
+    expect(mocks.adminService.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'payment_verification_failed' }),
+    );
+    expect(mocks.webhooksService.notifyVerificationFailed).toHaveBeenCalled();
+  });
+
+  it('forwards a non-streaming request and returns the upstream JSON with a receipt header', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(perTokenRoute);
+    mocks.paymentsService.findByTxHash
+      .mockResolvedValueOnce(null) // verify stage: no existing payment row
+      .mockResolvedValueOnce(payment); // forward stage: payment confirmed
+    mocks.x402Service.generateQuoteForRoute.mockResolvedValue(verificationQuote);
+    mocks.x402Service.verifyPayment.mockResolvedValue({
+      verified: true,
+      txHash: VALID_TX_HASH,
+      payerAddress: payment.payerAddress,
+      amount: '1000000',
+      asset: 'USDC',
+      ledger: 10,
+      timestamp: 1700000000,
+      failureReason: '',
+    });
+    mocks.paymentsService.confirmPayment.mockResolvedValue(payment);
+    mocks.proxyService.forwardRequest.mockResolvedValue({
+      response: { id: 'cmpl-1', usage: { total_tokens: 1000 } },
+      responseTime: 42,
+    });
+
+    await controller.handleChatCompletion(
+      flowReq({ headers: { 'x-payment-hash': VALID_TX_HASH } }),
+      mocks.res,
+    );
+
+    expect(mocks.res.json).toHaveBeenCalledWith({ id: 'cmpl-1', usage: { total_tokens: 1000 } });
+    expect(mocks.res.setHeader).toHaveBeenCalledWith(
+      'X-Payment-Receipt',
+      expect.stringContaining('quote-1'),
+    );
+    expect(mocks.res.setHeader).toHaveBeenCalledWith('X-Request-Trace-Id', expect.any(String));
+    expect(mocks.analyticsService.recordPaidRequest).toHaveBeenCalledWith(
+      perTokenRoute.path,
+      perTokenRoute.providerId,
+      payment.payerAddress,
+      '10000', // 1000 tokens × 10 stroops
+      'USDC',
+      42,
+    );
+    expect(mocks.adminService.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'request_forwarded' }),
+    );
+    expect(mocks.webhooksService.notifyPaymentReceived).toHaveBeenCalled();
+  });
+
+  it('forwards a streaming request and emits a trailing receipt event', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(perTokenRoute);
+    mocks.paymentsService.findByTxHash.mockResolvedValueOnce(null).mockResolvedValueOnce(payment);
+    mocks.x402Service.generateQuoteForRoute.mockResolvedValue(verificationQuote);
+    mocks.x402Service.verifyPayment.mockResolvedValue({
+      verified: true,
+      txHash: VALID_TX_HASH,
+      payerAddress: payment.payerAddress,
+      amount: '1000000',
+      asset: 'USDC',
+      ledger: 10,
+      timestamp: 1700000000,
+      failureReason: '',
+    });
+    mocks.paymentsService.confirmPayment.mockResolvedValue(payment);
+
+    let onDone: ((totalTokens?: number) => void | Promise<void>) | undefined;
+    mocks.proxyService.forwardStreamRequest.mockImplementation(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      async (_body: any, _url: any, _res: any, _apiKey: any, _traceId: any, cb: any) => {
+        onDone = cb;
+      },
+    );
+
+    await controller.handleChatCompletion(
+      flowReq({
+        body: { model: 'gpt-4', messages: [{ role: 'user', content: 'hi' }], stream: true },
+        headers: { 'x-payment-hash': VALID_TX_HASH },
+      }),
+      mocks.res,
+    );
+
+    expect(mocks.proxyService.forwardStreamRequest).toHaveBeenCalledTimes(1);
+    expect(mocks.adminService.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'request_forwarded_stream' }),
+    );
+
+    // Simulate stream completion with a usage chunk → trailing receipt event.
+    await onDone?.(1000);
+
+    expect(mocks.res.write).toHaveBeenCalledWith(expect.stringContaining('x402_receipt'));
+    expect(mocks.res.write).toHaveBeenCalledWith('data: [DONE]\n\n');
+    expect(mocks.analyticsService.recordPaidRequest).toHaveBeenCalledWith(
+      perTokenRoute.path,
+      perTokenRoute.providerId,
+      payment.payerAddress,
+      '10000',
+      'USDC',
+      expect.any(Number),
+    );
+  });
+
+  it('returns 402 when the payment claim is lost to a concurrent request', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockResolvedValue(flatRoute);
+    mocks.paymentsService.findByTxHash.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    mocks.x402Service.generateQuoteForRoute.mockResolvedValue(verificationQuote);
+    mocks.x402Service.verifyPayment.mockResolvedValue({
+      verified: true,
+      txHash: VALID_TX_HASH,
+      payerAddress: 'GA7Q...',
+      amount: '500',
+      asset: 'USDC',
+      ledger: 10,
+      timestamp: 1700000000,
+      failureReason: '',
+    });
+    mocks.paymentsService.confirmPayment.mockResolvedValue(null); // lost the race
+
+    await controller.handleChatCompletion(
+      flowReq({ headers: { 'x-payment-hash': VALID_TX_HASH } }),
+      mocks.res,
+    );
+
+    expect(mocks.res.status).toHaveBeenCalledWith(402);
+    expect(mocks.res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('already been used') }),
+    );
+  });
+
+  it('returns 502 when an unexpected error occurs', async () => {
+    const { controller, mocks } = buildFlowHarness();
+    mocks.routesService.findByPathAndModel.mockRejectedValue(new Error('db down'));
+
+    await controller.handleChatCompletion(flowReq(), mocks.res);
+
+    expect(mocks.res.status).toHaveBeenCalledWith(502);
+    expect(mocks.res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 502 }));
   });
 });
