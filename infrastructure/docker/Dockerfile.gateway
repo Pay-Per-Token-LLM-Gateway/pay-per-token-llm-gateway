@@ -61,4 +61,10 @@ COPY --from=builder /app/packages /app/packages
 
 EXPOSE 3000
 
+# Health check: curl the gateway's /health endpoint (excluded from the global
+# api/v1 prefix in main.ts), so `docker compose ps` reports healthy/unhealthy.
+RUN apk add --no-cache curl
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -fsS http://localhost:3000/health || exit 1
+
 CMD ["node", "dist/apps/gateway/main.js"]
