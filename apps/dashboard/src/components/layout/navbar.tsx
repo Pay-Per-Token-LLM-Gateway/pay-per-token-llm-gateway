@@ -1,13 +1,15 @@
 'use client';
 
-import { Bell, Settings, Wallet, LogOut, Loader2 } from 'lucide-react';
+import { Bell, Settings, Wallet, LogOut, Loader2, Sun, Moon } from 'lucide-react';
 import { useAuth } from '@/lib/useAuth';
+import { useTheme } from '@/components/providers/theme-provider';
 
 const STELLAR_NETWORK = process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'testnet';
 const NETWORK_LABEL = STELLAR_NETWORK.charAt(0).toUpperCase() + STELLAR_NETWORK.slice(1);
 
 export function Navbar() {
   const { address, isConnected, loading, disconnect } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <header className="h-16 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-6 shrink-0">
@@ -20,13 +22,26 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-4">
-        <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors relative">
-          <Bell className="w-5 h-5 text-gray-400" />
+        <button
+          onClick={toggleTheme}
+          className="p-2 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-5 h-5 text-gray-400" />
+          ) : (
+            <Moon className="w-5 h-5 text-gray-500" />
+          )}
+        </button>
+
+        <button className="p-2 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 rounded-lg transition-colors relative">
+          <Bell className="w-5 h-5 text-gray-400 dark:text-gray-500" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full" />
         </button>
 
-        <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
-          <Settings className="w-5 h-5 text-gray-400" />
+        <button className="p-2 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 rounded-lg transition-colors">
+          <Settings className="w-5 h-5 text-gray-400 dark:text-gray-500" />
         </button>
 
         {loading ? (
