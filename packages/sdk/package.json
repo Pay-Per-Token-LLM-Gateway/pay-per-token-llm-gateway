@@ -9,6 +9,7 @@
     "@x402/types": "workspace:*",
     "@x402/shared": "workspace:*",
     "@x402/logger": "workspace:*",
-    "@x402/wallet": "workspace:*"
+    "@x402/wallet": "workspace:*",
+    "@stellar/stellar-sdk": "^12.0.0"
   }
 }

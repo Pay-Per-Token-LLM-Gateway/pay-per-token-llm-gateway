@@ -17,10 +17,12 @@ import {
 } from '@x402/types';
 import { sleep, stroopsToUnits } from '@x402/shared';
 import { logger } from '@x402/logger';
+import { TransactionBuilder } from '@stellar/stellar-sdk';
 import {
   buildPaymentTransaction,
   buildUnsignedPaymentTransaction,
   createHorizonServer,
+  getNetworkPassphrase,
 } from '@x402/wallet';
 
 // ── Default Configuration ────────────────────
@@ -68,13 +70,12 @@ export class X402Client {
 
     // 402 → handle payment + retry
     if (firstResponse.status === 402) {
-      const paymentRequired: PaymentRequiredResponse = await firstResponse.json();
-      await firstResponse.body?.cancel();
+      const paymentRequired = (await firstResponse.json()) as PaymentRequiredResponse;
       return this.handle402Payment(paymentRequired, request, route, options, false);
     }
 
     if (firstResponse.ok) {
-      const response: ChatCompletionResponse = await firstResponse.json();
+      const response = (await firstResponse.json()) as ChatCompletionResponse;
       return { success: true, response, cost: { amount: '0', asset: 'USDC' } };
     }
 
@@ -101,8 +102,7 @@ export class X402Client {
     });
 
     if (firstResponse.status === 402) {
-      const paymentRequired: PaymentRequiredResponse = await firstResponse.json();
-      await firstResponse.body?.cancel();
+      const paymentRequired = (await firstResponse.json()) as PaymentRequiredResponse;
       return this.handle402Payment(paymentRequired, streamingRequest, route, options, true);
     }
 
@@ -132,7 +132,7 @@ export class X402Client {
     try {
       const response = await fetch(`${this.config.gatewayUrl}/api/v1/payments/${quoteId}/status`);
       if (!response.ok) return null;
-      return await response.json();
+      return (await response.json()) as PaymentReceipt;
     } catch {
       return null;
     }
@@ -208,7 +208,7 @@ export class X402Client {
       } as X402StreamResult;
     }
 
-    const llmResponse: ChatCompletionResponse = await response.json();
+    const llmResponse = (await response.json()) as ChatCompletionResponse;
     const receipt: PaymentReceipt | undefined = response.headers.get('X-Payment-Receipt')
       ? JSON.parse(response.headers.get('X-Payment-Receipt')!)
       : undefined;
@@ -274,9 +274,12 @@ export class X402Client {
         horizonUrl: this.getHorizonUrl(quote.network),
       });
 
-      // Submit to Horizon via SDK server (not raw fetch)
+      // Submit to Horizon via SDK server (not raw fetch). stellar-sdk v12's
+      // submitTransaction requires a Transaction object, so re-hydrate the
+      // signed XDR before submitting (same pattern as @x402/wallet).
       const server = createHorizonServer(quote.network);
-      await server.submitTransaction(result.txXdr);
+      const tx = TransactionBuilder.fromXDR(result.txXdr, getNetworkPassphrase(quote.network));
+      await server.submitTransaction(tx);
 
       logger.info('Payment submitted', {
         txHash: result.txHash,
@@ -319,9 +322,11 @@ export class X402Client {
       // 2. Hand the unsigned XDR to the external signer
       const signedXdr = await this.config.signTransaction!(unsigned.txXdr);
 
-      // 3. Submit the signed transaction
+      // 3. Submit the signed transaction (re-hydrate the XDR first — see
+      //    executePaymentWithSecretKey)
       const server = createHorizonServer(quote.network);
-      await server.submitTransaction(signedXdr);
+      const tx = TransactionBuilder.fromXDR(signedXdr, getNetworkPassphrase(quote.network));
+      await server.submitTransaction(tx);
 
       logger.info('Payment submitted (external signer)', {
         txHash: unsigned.txHash,
@@ -350,7 +355,7 @@ export class X402Client {
       try {
         const response = await fetch(`${horizonUrl}/transactions/${txHash}`);
         if (response.ok) {
-          const txData = await response.json();
+          const txData = (await response.json()) as { successful?: boolean };
           if (txData.successful) return true;
         }
       } catch {

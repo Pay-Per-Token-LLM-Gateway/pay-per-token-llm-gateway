@@ -323,6 +323,9 @@ importers:
 
   packages/sdk:
     dependencies:
+      '@stellar/stellar-sdk':
+        specifier: ^12.0.0
+        version: 12.3.0
       '@x402/logger':
         specifier: workspace:*
         version: link:../logger
