@@ -1,0 +1,19 @@
+# Single-command deployment:
+#   kubectl apply -k infrastructure/kubernetes/
+#
+# Order is handled by kustomize: namespace first, then the rest.
+# After applying, create the TLS secret (see ingress.yaml) and run the
+# migration Job (see migrations-job.yaml) before traffic is served.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: x402
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - postgres.yaml
+  - redis.yaml
+  - gateway.yaml
+  - dashboard.yaml
+  - ingress.yaml
+  - migrations-job.yaml

@@ -1,0 +1,28 @@
+# Non-sensitive configuration for the x402 stack.
+#
+# Anything secret (JWT_SECRET, DATABASE_URL, contract admin keys, upstream
+# provider API keys) lives in secret.yaml — never put it here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x402-config
+  namespace: x402
+  labels:
+    app.kubernetes.io/name: x402-gateway
+    app.kubernetes.io/part-of: x402
+data:
+  # ── Shared ──────────────────────────────────────────────
+  NODE_ENV: production
+
+  # ── Gateway ─────────────────────────────────────────────
+  PORT: '3000'
+  HOST: 0.0.0.0
+  STELLAR_NETWORK: testnet
+  HORIZON_URL: https://horizon-testnet.stellar.org
+  SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+  USDC_ISSUER: GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
+  CORS_ORIGINS: https://x402-dashboard.vercel.app
+  TRUST_PROXY: '1'
+
+  # ── Dashboard ───────────────────────────────────────────
+  NEXT_PUBLIC_GATEWAY_URL: http://gateway:3000

@@ -1,0 +1,51 @@
+# One-off Prisma migration Job.
+#
+# The gateway image does not run migrations on boot, so the database schema
+# must be applied before (and after every upgrade that ships new migrations):
+#
+#   kubectl apply -f migrations-job.yaml
+#   kubectl -n x402 wait --for=condition=complete job/prisma-migrate
+#   kubectl -n x402 logs job/prisma-migrate
+#
+# The Job reuses the gateway image (which bundles @prisma/client + the Prisma
+# CLI via the workspace) and points at the same DATABASE_URL from the secret.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prisma-migrate
+  namespace: x402
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: x402
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: prisma-migrate
+          image: x402/gateway:latest
+          imagePullPolicy: Always
+          # --schema: the image CWD is /app; the workspace schema ships at
+          # packages/database/prisma/schema.prisma (with its migrations/ dir).
+          command:
+            [
+              'npx',
+              '--no-install',
+              'prisma',
+              'migrate',
+              'deploy',
+              '--schema',
+              'packages/database/prisma/schema.prisma',
+            ]
+          envFrom:
+            - secretRef:
+                name: x402-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
