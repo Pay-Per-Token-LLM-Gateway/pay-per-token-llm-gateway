@@ -109,17 +109,22 @@ export class X402Client {
     if (firstResponse.ok) {
       const headerReceipt = this.parseReceiptHeader(firstResponse.headers.get('X-Payment-Receipt'));
       const receiptRef: { receipt: PaymentReceipt | undefined } = { receipt: headerReceipt };
+      // The gateway sends a preliminary X-Payment-Receipt header before the
+      // stream starts and a final x402_receipt trailing SSE event after it
+      // completes. Expose receipt/cost lazily so the result reflects the
+      // final receipt (actual cost for per-token routes) once the stream has
+      // been consumed, while still being available immediately from the
+      // header for flat-rate routes.
       return {
         success: true,
         stream: this.sseGenerator(firstResponse, receiptRef),
-        receipt: receiptRef.receipt ?? headerReceipt,
-        cost:
-          (receiptRef.receipt ?? headerReceipt)
-            ? {
-                amount: (receiptRef.receipt ?? headerReceipt)!.amount,
-                asset: (receiptRef.receipt ?? headerReceipt)!.asset as PaymentAsset,
-              }
-            : undefined,
+        get receipt(): PaymentReceipt | undefined {
+          return receiptRef.receipt ?? headerReceipt;
+        },
+        get cost(): { amount: string; asset: PaymentAsset } | undefined {
+          const r = receiptRef.receipt ?? headerReceipt;
+          return r ? { amount: r.amount, asset: r.asset as PaymentAsset } : undefined;
+        },
       };
     }
 
@@ -194,17 +199,22 @@ export class X402Client {
     if (isStream) {
       const headerReceipt = this.parseReceiptHeader(response.headers.get('X-Payment-Receipt'));
       const receiptRef: { receipt: PaymentReceipt | undefined } = { receipt: headerReceipt };
+      // The gateway sends a preliminary X-Payment-Receipt header before the
+      // stream starts and a final x402_receipt trailing SSE event after it
+      // completes. Expose receipt/cost lazily so the result reflects the
+      // final receipt (actual cost for per-token routes) once the stream has
+      // been consumed, while still being available immediately from the
+      // header for flat-rate routes.
       return {
         success: true,
         stream: this.sseGenerator(response, receiptRef),
-        receipt: receiptRef.receipt ?? headerReceipt,
-        cost:
-          (receiptRef.receipt ?? headerReceipt)
-            ? {
-                amount: (receiptRef.receipt ?? headerReceipt)!.amount,
-                asset: (receiptRef.receipt ?? headerReceipt)!.asset as PaymentAsset,
-              }
-            : undefined,
+        get receipt(): PaymentReceipt | undefined {
+          return receiptRef.receipt ?? headerReceipt;
+        },
+        get cost(): { amount: string; asset: PaymentAsset } | undefined {
+          const r = receiptRef.receipt ?? headerReceipt;
+          return r ? { amount: r.amount, asset: r.asset as PaymentAsset } : undefined;
+        },
       } as X402StreamResult;
     }
 

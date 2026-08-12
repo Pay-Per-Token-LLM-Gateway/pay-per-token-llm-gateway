@@ -573,6 +573,18 @@ describe('x402 Gateway E2E — Core Flow', () => {
       expect(res.headers['content-type']).toContain('text/event-stream');
       expect(res.text).toContain('data: [DONE]');
       expect(res.headers['x-request-trace-id']).toBeDefined();
+
+      // Issue #29: streaming responses must carry payment receipt info —
+      // a preliminary X-Payment-Receipt header (set before the stream
+      // flushes) plus a final x402_receipt trailing SSE event with the
+      // actual cost, mirroring the non-streaming contract.
+      const streamReceiptHeader = res.headers['x-payment-receipt'];
+      expect(streamReceiptHeader).toBeDefined();
+      const streamReceipt = JSON.parse(streamReceiptHeader);
+      expect(streamReceipt.txHash).toBe(streamHash);
+      expect(streamReceipt.asset).toBe('USDC');
+      expect(streamReceipt.amount).toBeDefined();
+      expect(res.text).toContain('x402_receipt');
     } finally {
       global.fetch = orig;
     }
