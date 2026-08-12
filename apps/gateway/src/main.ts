@@ -45,6 +45,19 @@ async function bootstrap() {
   const httpServer = app.getHttpAdapter().getInstance() as Express;
   httpServer.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
 
+  // Warn when production is running with the default trust-proxy setting and
+  // no reverse proxy is obviously configured. The default "1" trusts the
+  // left-most X-Forwarded-For hop, which a client can spoof when the gateway
+  // is directly exposed.
+  if (config.nodeEnv === 'production' && trustProxy === '1' && !process.env.PUBLIC_GATEWAY_URL) {
+    logger.warn(
+      '⚠️  TRUST_PROXY=1 (default) trusts the left-most X-Forwarded-For hop. ' +
+        'If the gateway is directly exposed, a client can spoof this header to ' +
+        'bypass IP-based rate limits. Set TRUST_PROXY=0 when directly exposed, ' +
+        'or set RATE_LIMIT_BY_WALLET=true to key the paid tier by wallet address.',
+    );
+  }
+
   // Global exception filter (consistent error format + Retry-After for 429)
   app.useGlobalFilters(new HttpExceptionFilter());
 

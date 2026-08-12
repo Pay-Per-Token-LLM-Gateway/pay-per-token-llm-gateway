@@ -141,8 +141,24 @@ export interface GatewayConfig {
      * behind Cloudflare/NGINX/Railway for IP-based rate limiting.
      * Examples: "1" (default, trust first hop), "loopback", or a
      * comma-separated list of proxy IPs.
+     *
+     * ⚠️  When the gateway is directly exposed (no reverse proxy), setting
+     * this to "1" trusts the left-most `X-Forwarded-For` header, which a
+     * client can spoof to bypass IP-based rate limits. In production, either
+     * run behind a trusted reverse proxy or set TRUST_PROXY=0 and rely on
+     * `RATE_LIMIT_BY_WALLET` for the paid tier.
      */
     trustProxy: string;
+    /**
+     * When true, the paid rate-limit tier keys by the payer's Stellar wallet
+     * address (from the confirmed payment row) instead of the caller IP.
+     * This prevents IP-rotation attacks on the paid tier when the gateway is
+     * directly exposed without a reverse proxy. Defaults to false.
+     *
+     * The unpaid tier always keys by IP — wallet-based keying only applies
+     * to requests with a confirmed `x-payment-hash` header.
+     */
+    rateLimitByWallet: boolean;
   };
 }
 
@@ -194,6 +210,21 @@ export function validateEnv(): void {
   if (missing.length > 0) {
     const messages = missing.map((r) => `  • ${r.message}`).join('\n');
     throw new Error(`Missing required environment variables:\n${messages}`);
+  }
+
+  // Warn when running in production without an explicit TRUST_PROXY setting.
+  // The default of "1" trusts the left-most X-Forwarded-For hop, which is
+  // safe behind a reverse proxy (Cloudflare/NGINX/Railway) but trivially
+  // spoofable when the gateway is directly exposed. Operators must explicitly
+  // acknowledge the trust model.
+  if (process.env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
+    console.warn(
+      '⚠️  WARNING: TRUST_PROXY is not explicitly set. Defaulting to "1" trusts the\n' +
+        '  left-most X-Forwarded-For hop. If the gateway is directly exposed (no\n' +
+        '  reverse proxy), a client can spoof this header to bypass IP-based rate\n' +
+        '  limits. Set TRUST_PROXY=0 when directly exposed, or configure a trusted\n' +
+        '  reverse proxy. See SECURITY.md for details.',
+    );
   }
 }
 
@@ -309,6 +340,7 @@ export function loadConfig(): GatewayConfig {
       corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3001').split(','),
       authDevMode: process.env.AUTH_DEV_MODE === 'true',
       trustProxy: process.env.TRUST_PROXY || '1',
+      rateLimitByWallet: process.env.RATE_LIMIT_BY_WALLET === 'true',
     },
 
     contracts: {

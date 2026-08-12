@@ -75,12 +75,12 @@ describe('RateLimitGuard', () => {
     expect(key).not.toContain(CALLER_HEADER);
     expect(prismaMock.payment.findFirst).toHaveBeenCalledWith({
       where: { txHash: TX_HASH, status: 'confirmed' },
-      select: { id: true },
+      select: { id: true, payerAddress: true },
     });
   });
 
   it('grants the paid tier only when the hash maps to a confirmed payment', async () => {
-    (prismaMock.payment.findFirst as jest.Mock).mockResolvedValue({ id: 'pay-1' });
+    (prismaMock.payment.findFirst as jest.Mock).mockResolvedValue({ id: 'pay-1', payerAddress: null });
     const guard = makeGuard();
 
     await guard.canActivate(makeContext({ 'x-payment-hash': TX_HASH }, CLIENT_IP));
@@ -88,6 +88,51 @@ describe('RateLimitGuard', () => {
     const key = evalKey();
     expect(key).toContain(':paid:');
     expect(key).toContain(CLIENT_IP);
+  });
+
+  it('keys the paid tier by wallet address when RATE_LIMIT_BY_WALLET=true', async () => {
+    const WALLET = 'GA5ZSE6VKPVFLEXMWJQBGHE4FJHKQIFSJMLQ7H4VFQB4UHLEH5IOVK3F';
+    (prismaMock.payment.findFirst as jest.Mock).mockResolvedValue({
+      id: 'pay-2',
+      payerAddress: WALLET,
+    });
+
+    // Set the config flag
+    const { setConfig, loadConfig } = jest.requireActual('@x402/config');
+    const base = loadConfig();
+    setConfig({ ...base, security: { ...base.security, rateLimitByWallet: true } });
+
+    const guard = makeGuard();
+    await guard.canActivate(makeContext({ 'x-payment-hash': TX_HASH }, CLIENT_IP));
+
+    const key = evalKey();
+    expect(key).toContain(':paid:');
+    expect(key).toContain(WALLET);
+    expect(key).not.toContain(CLIENT_IP);
+
+    // Reset config
+    setConfig(base);
+  });
+
+  it('falls back to IP when RATE_LIMIT_BY_WALLET=true but payerAddress is null', async () => {
+    (prismaMock.payment.findFirst as jest.Mock).mockResolvedValue({
+      id: 'pay-3',
+      payerAddress: null,
+    });
+
+    const { setConfig, loadConfig } = jest.requireActual('@x402/config');
+    const base = loadConfig();
+    setConfig({ ...base, security: { ...base.security, rateLimitByWallet: true } });
+
+    const guard = makeGuard();
+    await guard.canActivate(makeContext({ 'x-payment-hash': TX_HASH }, CLIENT_IP));
+
+    const key = evalKey();
+    expect(key).toContain(':paid:');
+    expect(key).toContain(CLIENT_IP);
+
+    // Reset config
+    setConfig(base);
   });
 
   it('throws a 429 when the rate limit is exceeded', async () => {

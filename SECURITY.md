@@ -29,7 +29,29 @@ Transaction hashes are tracked in Redis (or PostgreSQL) with a TTL. The same tra
 
 ### Rate Limiting
 
-Unpaid 402 requests are rate-limited by caller IP or wallet address. This prevents quote-spam and resource exhaustion attacks.
+Unpaid 402 requests are rate-limited by caller IP. This prevents quote-spam
+and resource exhaustion attacks.
+
+For the paid tier, the rate limit can optionally be keyed by the payer's
+Stellar wallet address instead of IP by setting `RATE_LIMIT_BY_WALLET=true`.
+This prevents IP-rotation attacks on the paid tier when the gateway is
+directly exposed without a reverse proxy. The wallet address is read from the
+confirmed payment row (`Payment.payerAddress`) — it is never taken from a
+client-supplied header.
+
+### Trust Proxy
+
+The gateway uses Express's `trust proxy` setting (configured via `TRUST_PROXY`)
+to resolve the real client IP behind a reverse proxy. **When the gateway is
+directly exposed (no Cloudflare, NGINX, or Railway), setting `TRUST_PROXY=1`
+(the default) trusts the left-most `X-Forwarded-For` header, which a client
+can spoof to bypass IP-based rate limits.**
+
+In production:
+- **Behind a reverse proxy**: set `TRUST_PROXY` to match your proxy setup
+  (`"1"`, `"loopback"`, or a comma-separated list of proxy IPs).
+- **Directly exposed**: set `TRUST_PROXY=0` and consider
+  `RATE_LIMIT_BY_WALLET=true` for the paid tier.
 
 ### Key Management
 

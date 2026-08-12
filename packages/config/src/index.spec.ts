@@ -47,27 +47,31 @@ describe('config security hardening', () => {
       expect(() => loadConfig()).not.toThrow();
     });
 
-    it('accepts a real secret and reads AUTH_DEV_MODE / TRUST_PROXY from the environment', () => {
+    it('accepts a real secret and reads AUTH_DEV_MODE / TRUST_PROXY / RATE_LIMIT_BY_WALLET from the environment', () => {
       process.env.NODE_ENV = 'test';
       process.env.JWT_SECRET = 'a-real-random-256-bit-secret';
       process.env.AUTH_DEV_MODE = 'true';
       process.env.TRUST_PROXY = 'loopback';
+      process.env.RATE_LIMIT_BY_WALLET = 'true';
 
       const config = loadConfig();
       expect(config.security.jwtSecret).toBe('a-real-random-256-bit-secret');
       expect(config.security.authDevMode).toBe(true);
       expect(config.security.trustProxy).toBe('loopback');
+      expect(config.security.rateLimitByWallet).toBe(true);
     });
 
-    it('defaults authDevMode to false and trustProxy to "1"', () => {
+    it('defaults authDevMode to false, trustProxy to "1", and rateLimitByWallet to false', () => {
       process.env.NODE_ENV = 'test';
       process.env.JWT_SECRET = 'a-real-random-256-bit-secret';
       delete process.env.AUTH_DEV_MODE;
       delete process.env.TRUST_PROXY;
+      delete process.env.RATE_LIMIT_BY_WALLET;
 
       const config = loadConfig();
       expect(config.security.authDevMode).toBe(false);
       expect(config.security.trustProxy).toBe('1');
+      expect(config.security.rateLimitByWallet).toBe(false);
     });
 
     it('caches the config singleton via getConfig and replaces it via setConfig', () => {
