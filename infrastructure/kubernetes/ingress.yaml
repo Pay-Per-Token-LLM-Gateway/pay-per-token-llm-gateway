@@ -1,0 +1,55 @@
+# Ingress with TLS termination.
+#
+# Requirements before applying:
+#   - An ingress-nginx controller installed in the cluster (or switch
+#     ingressClassName to your controller, e.g. traefik).
+#   - The `x402-tls` TLS Secret present in the x402 namespace, containing the
+#     certificate for your host:
+#       kubectl -n x402 create secret tls x402-tls \
+#         --cert=tls.crt --key=tls.key
+#     (or use cert-manager + a ClusterIssuer to issue it automatically).
+#   - DNS for gateway.example.com / dashboard.example.com pointing at your
+#     ingress controller's LoadBalancer.
+#
+# Replace the hostnames below with your real domain before applying.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: x402-ingress
+  namespace: x402
+  labels:
+    app.kubernetes.io/name: x402-gateway
+    app.kubernetes.io/part-of: x402
+  annotations:
+    # WebSocket/SSE support (streaming responses) — required by the gateway.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-buffering: 'off'
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - gateway.example.com
+        - dashboard.example.com
+      secretName: x402-tls
+  rules:
+    - host: gateway.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  name: http
+    - host: dashboard.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  name: http
