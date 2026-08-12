@@ -389,6 +389,23 @@ export class ProxyController {
 
     res.setHeader('X-Request-Trace-Id', traceId);
 
+    if (payment) {
+      res.setHeader(
+        'X-Payment-Receipt',
+        JSON.stringify({
+          id: payment.id,
+          quoteId: payment.quoteId,
+          txHash: payment.txHash,
+          payerAddress: payment.payerAddress,
+          amount: payment.amount?.toString(),
+          asset: payment.asset,
+          status: payment.status,
+          actualCost: payment.amount?.toString() || '0',
+          tokensUsed: null,
+        }),
+      );
+    }
+
     // Pipe upstream SSE stream to client; extract tokens for per-token pricing
     await this.proxyService.forwardStreamRequest(
       body,
