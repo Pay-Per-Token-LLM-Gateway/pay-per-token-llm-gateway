@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x402-gateway
+  labels:
+    app: x402-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: x402-gateway
+  template:
+    metadata:
+      labels:
+        app: x402-gateway
+    spec:
+      containers:
+      - name: gateway
+        image: ghcr.io/pay-per-token-llm-gateway/gateway:latest
+        ports:
+        - containerPort: 3000
+        envFrom:
+        - configMapRef:
+            name: x402-config
+        - secretRef:
+            name: x402-secrets
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: x402-gateway-svc
+spec:
+  selector:
+    app: x402-gateway
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x402-config
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  HOST: "0.0.0.0"
+  STELLAR_NETWORK: "mainnet"
