@@ -2,6 +2,7 @@
 
 import { Bell, Settings, Wallet, LogOut, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/useAuth';
+import { ThemeToggle } from './theme-toggle';
 
 const STELLAR_NETWORK = process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'testnet';
 const NETWORK_LABEL = STELLAR_NETWORK.charAt(0).toUpperCase() + STELLAR_NETWORK.slice(1);
@@ -20,13 +21,14 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-4">
-        <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors relative">
-          <Bell className="w-5 h-5 text-gray-400" />
+        <ThemeToggle />
+        <button className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors relative">
+          <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full" />
         </button>
 
-        <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
-          <Settings className="w-5 h-5 text-gray-400" />
+        <button className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors">
+          <Settings className="w-5 h-5 text-gray-600 dark:text-gray-400" />
         </button>
 
         {loading ? (
