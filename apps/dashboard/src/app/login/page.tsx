@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Wallet, ArrowRight, Shield, Loader2, AlertTriangle } from 'lucide-react';
 import { requestChallenge, verifyChallenge, setSessionToken, setWalletAddress } from '@/lib/api';
+import { getDevWalletAddress, isDevModeActive } from '@/lib/devMode';
 
 type WalletType = 'freighter' | 'xbull' | 'albedo';
 
@@ -175,7 +176,8 @@ export default function LoginPage() {
 /**
  * Get the public key from a Stellar browser wallet extension.
  * In production, this uses the wallet's browser API.
- * Falls back to a development mode address if no extension is detected.
+ * Falls back to the env-configured development address (NEXT_PUBLIC_DEV_WALLET)
+ * when no extension is detected and the dev fallback is armed — see lib/devMode.
  */
 async function getWalletAddress(type: WalletType): Promise<string | null> {
   try {
@@ -195,16 +197,16 @@ async function getWalletAddress(type: WalletType): Promise<string | null> {
       return pubKey;
     }
 
-    // Dev fallback: use a throwaway testnet address when no wallet extension
-    // is detected. Enabled in local dev (NODE_ENV=development) OR when
-    // NEXT_PUBLIC_AUTH_DEV_MODE=true (Vercel test deployments). The gateway
-    // also requires AUTH_DEV_MODE=true to accept dev signatures.
-    if (
-      process.env.NODE_ENV === 'development' ||
-      process.env.NEXT_PUBLIC_AUTH_DEV_MODE === 'true'
-    ) {
+    // Dev fallback: use the env-configured address when no wallet extension
+    // is detected. Armed only in non-production builds or behind the
+    // explicit NEXT_PUBLIC_AUTH_DEV_MODE=true opt-in (Vercel test
+    // deployments), and only when NEXT_PUBLIC_DEV_WALLET is set — fail
+    // closed in production. The gateway also requires AUTH_DEV_MODE=true
+    // to accept the resulting dev signatures.
+    const devWallet = getDevWalletAddress();
+    if (devWallet) {
       console.warn(`[x402] No ${type} wallet extension detected. Using dev mode address.`);
-      return 'GA5ZSE6VKPVFLEXMWJQBGHE4FJHKQIFSJMLQ7H4VFQB4UHLEH5IOVK3F';
+      return devWallet;
     }
 
     return null;
@@ -236,11 +238,9 @@ async function signChallenge(
     }
 
     // Dev fallback: return a mock signature when no wallet extension is
-    // detected. Enabled in local dev OR when NEXT_PUBLIC_AUTH_DEV_MODE=true.
-    if (
-      process.env.NODE_ENV === 'development' ||
-      process.env.NEXT_PUBLIC_AUTH_DEV_MODE === 'true'
-    ) {
+    // detected, mirroring the address fallback above. Only armed when the
+    // dev fallback itself is active (fail closed in production).
+    if (isDevModeActive()) {
       console.warn(`[x402] No ${type} wallet for signing. Using dev mode signature.`);
       return Buffer.from(`dev-sig-${address}-${Date.now()}`, 'utf-8').toString('base64');
     }
