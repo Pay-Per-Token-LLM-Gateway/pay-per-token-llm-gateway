@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 
 export default function ErrorPage({
   error,
@@ -10,6 +11,8 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { reset: resetQuery } = useQueryErrorResetBoundary();
+
   useEffect(() => {
     console.error('Dashboard error boundary caught:', error);
   }, [error]);
@@ -37,7 +40,10 @@ export default function ErrorPage({
               </p>
             )}
             <button
-              onClick={reset}
+              onClick={() => {
+                resetQuery();
+                reset();
+              }}
               className="inline-flex items-center gap-2 mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
