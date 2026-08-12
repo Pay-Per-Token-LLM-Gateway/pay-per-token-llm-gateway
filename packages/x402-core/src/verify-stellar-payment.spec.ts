@@ -138,13 +138,14 @@ describe('amount unit conversion (units ↔ stroops)', () => {
   });
 });
 
-function verify(opts: { quote: Quote; txHash?: string }) {
+function verify(opts: { quote: Quote; txHash?: string; minPaymentAmount?: string }) {
   return verifyStellarPayment({
     txHash: opts.txHash ?? TX_HASH,
     quote: opts.quote,
     horizonUrl: HORIZON_URL,
     sorobanRpcUrl: 'https://soroban-testnet.stellar.org',
     networkPassphrase: 'Test SDF Network ; September 2015',
+    ...(opts.minPaymentAmount !== undefined ? { minPaymentAmount: opts.minPaymentAmount } : {}),
   });
 }
 
@@ -367,6 +368,101 @@ describe('verifyStellarPayment', () => {
 
       expect(result.verified).toBe(false);
       expect(result.failureReason).toBe('No matching payment operation found');
+    });
+  });
+
+  describe('minPaymentAmount enforcement', () => {
+    // Flat route priced at 100,000 stroops (0.01 USDC); min is 200,000 stroops.
+    function lowPricedQuote() {
+      return makeQuote(makeRoute({ flatPrice: '100000', pricingModel: 'flat' }));
+    }
+
+    it('rejects a payment below the configured minimum', async () => {
+      const quote = lowPricedQuote(); // quote = 100,000 stroops
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({}, quote),
+        // 0.015 USDC = 150,000 stroops: above the quote but below the min.
+        ops: opsData([paymentOp({ amount: '0.0150000' })]),
+      });
+
+      const result = await verify({ quote, minPaymentAmount: '200000' });
+
+      expect(result.verified).toBe(false);
+      expect(result.failureReason).toBe('No matching payment operation found');
+    });
+
+    it('accepts a payment at the configured minimum', async () => {
+      const quote = lowPricedQuote();
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({}, quote),
+        ops: opsData([paymentOp({ amount: '0.0200000' })]), // exactly 200,000 stroops
+      });
+
+      const result = await verify({ quote, minPaymentAmount: '200000' });
+
+      expect(result.verified).toBe(true);
+      expect(result.amount).toBe('200000');
+    });
+
+    it('rejects an overpayment on a flat route (exact match still required after clamping)', async () => {
+      // Flat pricing requires an exact amount match: once the quote is
+      // clamped up to the minimum, paying MORE than the required amount is
+      // still a mismatch (no free change for the caller).
+      const quote = lowPricedQuote(); // quote = 100,000 stroops → clamped to 200,000
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({}, quote),
+        ops: opsData([paymentOp({ amount: '0.0300000' })]), // 300,000 stroops > min
+      });
+
+      const result = await verify({ quote, minPaymentAmount: '200000' });
+
+      expect(result.verified).toBe(false);
+      expect(result.failureReason).toBe('No matching payment operation found');
+    });
+
+    it('accepts a per-token payment above the minimum (>= semantics)', async () => {
+      // Per-token verification requires the payment to COVER the required
+      // amount (deposit, clamped up to the minimum), so overpayment is fine.
+      const quote = makeQuote(
+        makeRoute({ pricingModel: 'per_token', perTokenPrice: '50', flatPrice: undefined }),
+      ); // deposit = 50 × 4096 = 204,800 stroops; min 100,000 < deposit
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({}, quote),
+        ops: opsData([paymentOp({ amount: '0.0250000' })]), // 250,000 stroops ≥ 204,800
+      });
+
+      const result = await verify({ quote, minPaymentAmount: '100000' });
+
+      expect(result.verified).toBe(true);
+      expect(result.amount).toBe('250000');
+    });
+
+    it('clamps a degenerate quote up to the minimum (defense in depth)', async () => {
+      // A quote generated before the min was configured (or with flatPrice=0)
+      // must not grant access for a tiny payment when a min is set.
+      const quote = makeQuote(makeRoute({ flatPrice: '0', pricingModel: 'flat' }));
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({}, quote),
+        ops: opsData([paymentOp({ amount: '0.0000001' })]), // 1 stroop
+      });
+
+      const result = await verify({ quote, minPaymentAmount: '10000' });
+
+      expect(result.verified).toBe(false);
+      expect(result.failureReason).toBe('No matching payment operation found');
+    });
+
+    it('does not enforce a minimum when none is configured', async () => {
+      const quote = makeQuote(makeRoute({ flatPrice: '5000', pricingModel: 'flat' }));
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({}, quote),
+        ops: opsData([paymentOp({ amount: '0.0005000' })]), // exactly 5,000 stroops
+      });
+
+      const result = await verify({ quote });
+
+      expect(result.verified).toBe(true);
+      expect(result.amount).toBe('5000');
     });
   });
 
