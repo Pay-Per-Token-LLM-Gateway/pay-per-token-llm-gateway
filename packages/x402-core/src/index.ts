@@ -27,6 +27,8 @@ export interface QuoteGeneratorOptions {
   usdcIssuer: string;
   /** Estimated max tokens for per-token pricing (from request max_tokens) */
   estimatedTokens?: number;
+  /** Minimum payment amount (stroops) */
+  minPaymentAmount?: string;
 }
 
 /** Default token estimate when max_tokens is not specified */
@@ -56,6 +58,11 @@ export function generateQuote(options: QuoteGeneratorOptions): Quote {
   } else {
     // Flat: charge flat price
     amount = options.route.flatPrice || '0';
+  }
+
+  // Enforce minimum payment amount
+  if (options.minPaymentAmount && BigInt(amount) < BigInt(options.minPaymentAmount)) {
+    amount = options.minPaymentAmount;
   }
 
   // MEMO_TEXT is limited to 28 bytes. Derive a deterministic short memo from
@@ -130,6 +137,7 @@ export interface VerifyPaymentOptions {
   horizonUrl: string;
   sorobanRpcUrl: string;
   networkPassphrase: string;
+  minPaymentAmount?: string;
 }
 
 /**
@@ -225,6 +233,11 @@ export async function verifyStellarPayment(
       } else {
         // Flat: exact amount match (both sides in stroops)
         requiredAmount = BigInt(quote.amount);
+      }
+      
+      // Enforce minimum payment amount
+      if (options.minPaymentAmount && requiredAmount < BigInt(options.minPaymentAmount)) {
+        requiredAmount = BigInt(options.minPaymentAmount);
       }
     } catch {
       // Malformed quote price → nothing can match
