@@ -213,3 +213,26 @@ model AuditLog {
   @@index([actor])
   @@index([createdAt])
 }
+
+// ── Payout Proposals (multisig) ───────────────
+
+model PayoutProposal {
+  id              String   @id @default(uuid())
+  providerId      String
+  destination     String
+  amount          String
+  asset           String   @default("USDC")
+  status          String   @default("pending") // pending | approved | executed | rejected
+  signerApprovals String[] @default([])
+  threshold       Int      @default(1)
+  multisigTxHash  String?
+  executedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  provider        Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([status])
+  @@index([createdAt])
+}

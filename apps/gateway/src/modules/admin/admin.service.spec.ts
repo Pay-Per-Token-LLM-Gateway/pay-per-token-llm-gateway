@@ -20,6 +20,14 @@ jest.mock('@x402/database', () => ({
       count: jest.fn(),
       create: jest.fn(),
     },
+    payoutProposal: {
+      findMany: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      aggregate: jest.fn(),
+    },
   },
 }));
 
@@ -177,6 +185,66 @@ describe('AdminService', () => {
           details: { route: '/v1/chat/completions' },
         },
       });
+    });
+  });
+
+  // ── Payout Tests ─────────────────────────────
+
+  describe('proposePayout', () => {
+    it('rejects when payout automation is disabled', async () => {
+      jest.spyOn(require('@x402/config'), 'getConfig').mockReturnValue({
+        payment: { payoutAutomationEnabled: false, contractAdminSecret: 'secret' },
+      });
+
+      await expect(service.proposePayout('provider-1', OWNER)).rejects.toThrow(
+        'Payout automation is not enabled',
+      );
+    });
+
+    it('rejects when CONTRACT_ADMIN_SECRET is missing', async () => {
+      jest.spyOn(require('@x402/config'), 'getConfig').mockReturnValue({
+        payment: { payoutAutomationEnabled: true, contractAdminSecret: undefined },
+      });
+
+      await expect(service.proposePayout('provider-1', OWNER)).rejects.toThrow(
+        'CONTRACT_ADMIN_SECRET is required for payouts',
+      );
+    });
+  });
+
+  describe('approvePayoutProposal', () => {
+    it('rejects when payout automation is disabled', async () => {
+      jest.spyOn(require('@x402/config'), 'getConfig').mockReturnValue({
+        payment: { payoutAutomationEnabled: false, contractAdminSecret: 'secret' },
+      });
+
+      await expect(service.approvePayoutProposal('proposal-1', OWNER)).rejects.toThrow(
+        'Payout automation is not enabled',
+      );
+    });
+  });
+
+  describe('getPayoutProposals', () => {
+    it('returns an empty list when no proposals exist', async () => {
+      (mockPrisma.provider.findMany as jest.Mock).mockResolvedValue([{ id: 'provider-1' }]);
+      mockPrisma.payoutProposal.findMany.mockResolvedValue([]);
+      mockPrisma.payoutProposal.count.mockResolvedValue(0);
+
+      const result = await service.getPayoutProposals(OWNER, { page: 1, limit: 10 });
+
+      expect(mockPrisma.provider.findMany).toHaveBeenCalledWith({
+        where: { walletAddress: OWNER },
+        select: { id: true },
+      });
+      expect(mockPrisma.payoutProposal.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { providerId: { in: ['provider-1'] } },
+          skip: 0,
+          take: 10,
+        }),
+      );
+      expect(result.data).toEqual([]);
+      expect(result.total).toBe(0);
     });
   });
 });
