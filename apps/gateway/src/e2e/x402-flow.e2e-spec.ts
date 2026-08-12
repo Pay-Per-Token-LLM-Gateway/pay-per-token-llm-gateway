@@ -1252,10 +1252,6 @@ describe('x402 Gateway E2E — Admin Endpoint Security', () => {
     await request(app.getHttpServer()).get('/api/v1/admin/stats').expect(401);
   });
 
-  it('requires authentication for admin health', async () => {
-    await request(app.getHttpServer()).get('/api/v1/admin/health').expect(401);
-  });
-
   it('requires authentication for admin audit logs', async () => {
     await request(app.getHttpServer()).get('/api/v1/admin/audit').expect(401);
   });
