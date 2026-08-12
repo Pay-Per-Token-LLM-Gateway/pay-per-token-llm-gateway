@@ -70,6 +70,24 @@ describe('config security hardening', () => {
       expect(config.security.trustProxy).toBe('1');
     });
 
+    it('defaults minPaymentAmount to 10000 stroops when the env var is not set', () => {
+      process.env.NODE_ENV = 'test';
+      process.env.JWT_SECRET = 'a-real-random-256-bit-secret';
+      delete process.env.MIN_PAYMENT_AMOUNT;
+
+      const config = loadConfig();
+      expect(config.payment.minPaymentAmount).toBe('10000');
+    });
+
+    it('reads MIN_PAYMENT_AMOUNT from the environment', () => {
+      process.env.NODE_ENV = 'test';
+      process.env.JWT_SECRET = 'a-real-random-256-bit-secret';
+      process.env.MIN_PAYMENT_AMOUNT = '50000';
+
+      const config = loadConfig();
+      expect(config.payment.minPaymentAmount).toBe('50000');
+    });
+
     it('caches the config singleton via getConfig and replaces it via setConfig', () => {
       process.env.NODE_ENV = 'test';
       process.env.JWT_SECRET = 'a-real-random-256-bit-secret';

@@ -129,6 +129,56 @@ describe('generateQuote', () => {
   });
 });
 
+describe('generateQuote minPaymentAmount enforcement', () => {
+  const base = {
+    providerAddress: 'GA5ZSE6VKPVFLEXMWJQBGHE4FJHKQIFSJMLQ7H4VFQB4UHLEH5IOVK3F',
+    gatewayBaseUrl: 'http://localhost:3000',
+    network: 'testnet' as const,
+    quoteExpirySeconds: 300,
+    usdcIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+  };
+
+  it('leaves quotes above the minimum unchanged', () => {
+    const route = makeRoute({ flatPrice: '20000', pricingModel: 'flat' });
+    const quote = generateQuote({ ...base, route, minPaymentAmount: '10000' });
+
+    expect(quote.amount).toBe('20000');
+  });
+
+  it('clamps quotes below the minimum up to the minimum (free-access guard)', () => {
+    // flatPrice=0 must not result in free access when a minimum is configured.
+    const route = makeRoute({ flatPrice: '0', pricingModel: 'flat' });
+    const quote = generateQuote({ ...base, route, minPaymentAmount: '10000' });
+
+    expect(quote.amount).toBe('10000');
+  });
+
+  it('accepts quotes exactly at the minimum', () => {
+    const route = makeRoute({ flatPrice: '10000', pricingModel: 'flat' });
+    const quote = generateQuote({ ...base, route, minPaymentAmount: '10000' });
+
+    expect(quote.amount).toBe('10000');
+  });
+
+  it('clamps degenerate per-token deposits to the minimum', () => {
+    const route = makeRoute({
+      pricingModel: 'per_token',
+      perTokenPrice: '0',
+      flatPrice: undefined,
+    });
+    const quote = generateQuote({ ...base, route, minPaymentAmount: '10000' });
+
+    expect(quote.amount).toBe('10000');
+  });
+
+  it('does not clamp when no minimum is configured', () => {
+    const route = makeRoute({ flatPrice: '0', pricingModel: 'flat' });
+    const quote = generateQuote({ ...base, route });
+
+    expect(quote.amount).toBe('0');
+  });
+});
+
 describe('buildPaymentRequiredResponse', () => {
   it('builds a valid 402 response', () => {
     const route = makeRoute();
