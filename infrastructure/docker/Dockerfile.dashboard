@@ -49,4 +49,10 @@ COPY --from=builder /app/dist/apps/dashboard/public /app/public
 
 EXPOSE 3001
 
+# Health check: curl the Next.js standalone server root, so `docker compose ps`
+# reports healthy/unhealthy for the dashboard too.
+RUN apk add --no-cache curl
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -fsS http://localhost:3001 || exit 1
+
 CMD ["node", "server.js"]
