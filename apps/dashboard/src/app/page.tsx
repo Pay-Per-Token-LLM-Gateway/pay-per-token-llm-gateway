@@ -19,6 +19,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useAnalytics, useProvider, useTimeSeries } from '@/lib/hooks';
+import { ErrorState } from '@/components/error-state';
 import { format } from 'date-fns';
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3000';
@@ -34,7 +35,7 @@ function formatStroops(stroops: string | undefined): string {
 
 export default function DashboardPage() {
   const { data: provider } = useProvider();
-  const { data: stats, isLoading, error } = useAnalytics(provider?.id);
+  const { data: stats, isLoading, error, refetch } = useAnalytics(provider?.id);
   const { data: timeSeriesData } = useTimeSeries(provider?.id, 60, 24);
 
   // Build chart data from the time series API only — no fake/demo data.
@@ -55,30 +56,21 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1">Overview of your x402 LLM gateway</p>
         </div>
-        <div className="card">
-          {isUnauthenticated ? (
-            <>
-              <p className="text-yellow-400">Authentication required</p>
-              <p className="text-muted-foreground text-sm mt-2">
-                Your session has expired or you are not logged in.
-              </p>
-              <a
-                href="/login"
-                className="inline-flex items-center gap-2 mt-3 text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Connect Wallet
-              </a>
-            </>
-          ) : (
-            <>
-              <p className="text-red-400">Failed to load analytics: {(error as Error).message}</p>
-              <p className="text-muted-foreground text-sm mt-2">
-                Make sure the gateway is running at{' '}
-                <code className="bg-gray-800 px-1 rounded">{GATEWAY_URL}</code>
-              </p>
-            </>
-          )}
-        </div>
+        <ErrorState
+          title={isUnauthenticated ? 'Authentication required' : 'Failed to load analytics'}
+          message={
+            isUnauthenticated ? (
+              'Your session has expired or you are not logged in.'
+            ) : (
+              <>
+                {(error as Error).message}. Make sure the gateway is running at{' '}
+                <code className="bg-gray-800 px-1 rounded">{GATEWAY_URL}</code>.
+              </>
+            )
+          }
+          onRetry={() => refetch()}
+          unauthenticated={isUnauthenticated}
+        />
       </div>
     );
   }

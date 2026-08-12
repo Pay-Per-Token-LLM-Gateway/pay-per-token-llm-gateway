@@ -1,11 +1,12 @@
 'use client';
 
-import { Settings, Save, Loader2, AlertTriangle } from 'lucide-react';
+import { Settings, Save, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useProvider, useSaveProvider } from '@/lib/hooks';
+import { ErrorState } from '@/components/error-state';
 
 export default function SettingsPage() {
-  const { data: provider, isLoading, isError, error } = useProvider();
+  const { data: provider, isLoading, isError, error, refetch } = useProvider();
   const saveMutation = useSaveProvider();
 
   const [name, setName] = useState('');
@@ -77,17 +78,11 @@ export default function SettingsPage() {
             Configure your provider profile and gateway preferences
           </p>
         </div>
-        <div className="card max-w-2xl border-red-800/30 bg-red-950/10">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
-            </div>
-            <div>
-              <h3 className="font-medium text-red-400">Failed to load settings</h3>
-              <p className="text-sm text-muted-foreground mt-1">{(error as Error).message}</p>
-            </div>
-          </div>
-        </div>
+        <ErrorState
+          title="Failed to load settings"
+          message={(error as Error).message}
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
