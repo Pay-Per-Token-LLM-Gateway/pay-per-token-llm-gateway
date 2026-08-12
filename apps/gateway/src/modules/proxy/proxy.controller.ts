@@ -26,6 +26,25 @@ import { generateId } from '@x402/shared';
 import { settleEscrow } from '../x402/escrow-client';
 import type { ChatCompletionRequest, PaymentRecord, Quote, RouteConfig } from '@x402/types';
 
+// Per-token routes settle actual usage on-chain via the credit-escrow
+// contract (see escrow-client.ts). When settlement is not configured, log a
+// prominent warning ONCE per process so operators notice that the
+// README-described charge + auto-refund behavior is inactive. WARN, not
+// ERROR: settlement is best-effort by design and must never block responses.
+let warnedEscrowSettlementDisabled = false;
+function warnEscrowSettlementDisabled(flagEnabled: boolean): void {
+  if (warnedEscrowSettlementDisabled) return;
+  warnedEscrowSettlementDisabled = true;
+  const reason = flagEnabled
+    ? 'CONTRACT_ADMIN_SECRET is not set'
+    : 'ESCROW_SETTLEMENT_ENABLED is not true';
+  logger.warn(
+    `[escrow] A per-token route was used but credit-escrow settlement is disabled (${reason}). ` +
+      'Actual usage will not be charged on-chain and surplus will not be auto-refunded. ' +
+      'Set ESCROW_SETTLEMENT_ENABLED=true and CONTRACT_ADMIN_SECRET in .env to enable it.',
+  );
+}
+
 @ApiTags('proxy')
 @Controller()
 @UseGuards(RateLimitGuard)
@@ -625,6 +644,14 @@ export class ProxyController {
     // never block it.
     if (payment?.payerAddress) {
       const config = getConfig();
+      // Warn (once per process) when per-token usage runs without on-chain
+      // settlement so operators notice the README-described charge +
+      // auto-refund behavior is not active on this deployment.
+      const settlementConfigured =
+        config.payment.escrowSettlementEnabled && !!config.payment.contractAdminSecret;
+      if (!settlementConfigured) {
+        warnEscrowSettlementDisabled(config.payment.escrowSettlementEnabled);
+      }
       settleEscrow({
         enabled: config.payment.escrowSettlementEnabled,
         contractId: config.contracts.creditEscrow,
