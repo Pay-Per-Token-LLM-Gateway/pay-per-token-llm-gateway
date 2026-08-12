@@ -63,6 +63,7 @@ export class PaymentsService {
   async confirmPayment(
     quoteId: string,
     verification: PaymentVerification,
+    routePath?: string,
   ): Promise<PaymentReceipt | null> {
     const receipt: PaymentReceipt = {
       id: quoteId,
@@ -71,7 +72,7 @@ export class PaymentsService {
       payerAddress: verification.payerAddress,
       amount: verification.amount,
       asset: verification.asset,
-      route: '', // populated by the caller if the quote/route is known
+      route: routePath || '',
       status: 'confirmed',
       verifiedAt: new Date(verification.timestamp * 1000).toISOString(),
       ledger: verification.ledger,
@@ -181,7 +182,7 @@ export class PaymentsService {
     ]);
 
     // Serialize BigInt amounts to strings for JSON response
-    const serialized: PaymentResponse[] = payments.map((p) => ({
+    const serialized: PaymentResponse[] = payments.map((p: any) => ({
       id: p.id,
       quoteId: p.quoteId,
       txHash: p.txHash,

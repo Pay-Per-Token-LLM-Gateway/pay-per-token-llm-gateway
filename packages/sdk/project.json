@@ -4,6 +4,14 @@
   "sourceRoot": "packages/sdk/src",
   "projectType": "library",
   "targets": {
-    "lint": { "executor": "@nx/eslint:lint" }
+    "lint": { "executor": "@nx/eslint:lint" },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/packages/sdk"],
+      "options": {
+        "jestConfig": "packages/sdk/jest.config.ts",
+        "passWithNoTests": true
+      }
+    }
   }
 }
