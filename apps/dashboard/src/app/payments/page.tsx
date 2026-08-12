@@ -3,11 +3,12 @@
 import { ExternalLink, Copy, Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { usePayments } from '@/lib/hooks';
+import { ErrorState } from '@/components/error-state';
 
 export default function PaymentsPage() {
   const [page, setPage] = useState(1);
   const [copied, setCopied] = useState<string | null>(null);
-  const { data, isLoading, isError, error, isFetching } = usePayments({ page, limit: 20 });
+  const { data, isLoading, isError, error, isFetching, refetch } = usePayments({ page, limit: 20 });
 
   const copyTxHash = (hash: string | null) => {
     if (!hash) return;
@@ -28,24 +29,16 @@ export default function PaymentsPage() {
             All payment transactions processed by the gateway
           </p>
         </div>
-        <div className="card">
-          {isUnauthenticated ? (
-            <>
-              <p className="text-yellow-400">Authentication required</p>
-              <p className="text-muted-foreground text-sm mt-2">
-                Your session has expired or you are not logged in.
-              </p>
-              <a
-                href="/login"
-                className="inline-flex items-center gap-2 mt-3 text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Connect Wallet
-              </a>
-            </>
-          ) : (
-            <p className="text-red-400">Failed to load: {(error as Error).message}</p>
-          )}
-        </div>
+        <ErrorState
+          title={isUnauthenticated ? 'Authentication required' : 'Failed to load payments'}
+          message={
+            isUnauthenticated
+              ? 'Your session has expired or you are not logged in.'
+              : (error as Error).message
+          }
+          onRetry={() => refetch()}
+          unauthenticated={isUnauthenticated}
+        />
       </div>
     );
   }
