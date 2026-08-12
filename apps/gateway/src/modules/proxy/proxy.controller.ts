@@ -394,6 +394,27 @@ export class ProxyController {
 
     res.setHeader('X-Request-Trace-Id', traceId);
 
+    // Issue #29: response headers are flushed as soon as the stream starts
+    // (they cannot be modified afterwards), so the payment receipt must be
+    // set BEFORE forwarding. Send a preliminary receipt with the payment
+    // fields known at request time; the final actual cost for per-token
+    // routes is delivered via the trailing x402_receipt SSE event after
+    // the stream completes (see onDone below).
+    if (payment) {
+      res.setHeader(
+        'X-Payment-Receipt',
+        JSON.stringify({
+          id: payment.id,
+          quoteId: payment.quoteId,
+          txHash: payment.txHash,
+          payerAddress: payment.payerAddress,
+          amount: payment.amount?.toString(),
+          asset: payment.asset,
+          status: payment.status,
+        }),
+      );
+    }
+
     // Pipe upstream SSE stream to client; extract tokens for per-token pricing
     await this.proxyService.forwardStreamRequest(
       body,
