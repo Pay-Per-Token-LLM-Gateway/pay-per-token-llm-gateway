@@ -362,7 +362,7 @@ describe('X402Client.callStream()', () => {
     if (result.success) {
       expect(result.stream).toBeDefined();
       const chunks: any[] = [];
-      for await (const chunk of result.stream!) {
+      for await (const chunk of result.stream as AsyncGenerator<any>) {
         chunks.push(chunk);
       }
       expect(chunks).toHaveLength(2);
@@ -389,7 +389,7 @@ describe('X402Client.callStream()', () => {
     if (result.success) {
       expect(result.stream).toBeDefined();
       const chunks: any[] = [];
-      for await (const chunk of result.stream!) {
+      for await (const chunk of result.stream as AsyncGenerator<any>) {
         chunks.push(chunk);
       }
       // Only the LLM chunk should be yielded, not the receipt
@@ -824,7 +824,7 @@ describe('parseReceiptHeader (edge cases)', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       const chunks: any[] = [];
-      for await (const chunk of result.stream!) {
+      for await (const chunk of result.stream as AsyncGenerator<any>) {
         chunks.push(chunk);
       }
       expect(chunks).toHaveLength(0);
@@ -847,7 +847,7 @@ describe('parseReceiptHeader (edge cases)', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       const chunks: any[] = [];
-      for await (const chunk of result.stream!) {
+      for await (const chunk of result.stream as AsyncGenerator<any>) {
         chunks.push(chunk);
       }
       // Only the valid JSON chunk should be yielded, garbage is skipped
