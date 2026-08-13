@@ -119,6 +119,12 @@ export interface GatewayConfig {
      * `CONTRACT_ADMIN_SECRET` and an escrow contract funded by deposits.
      */
     escrowSettlementEnabled: boolean;
+    /**
+     * Opt-in payout automation via the multisig Soroban contract:
+     * provider revenue is paid out through the M-of-N multisig wallet.
+     * Requires `CONTRACT_ADMIN_SECRET` and a deployed multisig contract.
+     */
+    payoutAutomationEnabled: boolean;
   };
 
   /** Deployed Soroban contract addresses */
@@ -330,6 +336,7 @@ export function loadConfig(): GatewayConfig {
       minPaymentAmount: process.env.MIN_PAYMENT_AMOUNT || '10000', // 0.00001 XLM in stroops
       contractAdminSecret: process.env.CONTRACT_ADMIN_SECRET || undefined,
       escrowSettlementEnabled: process.env.ESCROW_SETTLEMENT_ENABLED === 'true',
+      payoutAutomationEnabled: process.env.PAYOUT_AUTOMATION_ENABLED === 'true',
     },
 
     llm: {
