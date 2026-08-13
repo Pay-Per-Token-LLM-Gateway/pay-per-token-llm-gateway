@@ -25,19 +25,19 @@ export default function AuditPage() {
           const isUnauthenticated = (error as Error).message?.includes('401');
           return (
             <div
-              className={`card ${isUnauthenticated ? 'border-yellow-800/30 bg-yellow-950/10' : 'border-red-800/30 bg-red-950/10'}`}
+              className={`card ${isUnauthenticated ? 'border-yellow-300/60 bg-yellow-50 dark:border-yellow-800/30 dark:bg-yellow-950/10' : 'border-red-300/60 bg-red-50 dark:border-red-800/30 dark:bg-red-950/10'}`}
             >
               <div className="flex items-start gap-3">
                 <div
-                  className={`p-2 rounded-lg shrink-0 ${isUnauthenticated ? 'bg-yellow-900/20' : 'bg-red-900/20'}`}
+                  className={`p-2 rounded-lg shrink-0 ${isUnauthenticated ? 'bg-yellow-100 dark:bg-yellow-900/20' : 'bg-red-100 dark:bg-red-900/20'}`}
                 >
                   <AlertTriangle
-                    className={`w-5 h-5 ${isUnauthenticated ? 'text-yellow-400' : 'text-red-400'}`}
+                    className={`w-5 h-5 ${isUnauthenticated ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}
                   />
                 </div>
                 <div className="flex-1">
                   <h3
-                    className={`font-medium ${isUnauthenticated ? 'text-yellow-400' : 'text-red-400'}`}
+                    className={`font-medium ${isUnauthenticated ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}
                   >
                     {isUnauthenticated ? 'Authentication required' : 'Failed to load audit logs'}
                   </h3>
@@ -56,7 +56,7 @@ export default function AuditPage() {
                   ) : (
                     <button
                       onClick={() => refetch()}
-                      className="inline-flex items-center gap-1.5 mt-2 text-sm text-green-400 hover:text-green-300 transition-colors"
+                      className="inline-flex items-center gap-1.5 mt-2 text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Retry
                     </button>
@@ -70,16 +70,16 @@ export default function AuditPage() {
       <div className="card">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
+            <Loader2 className="w-8 h-8 text-green-600 dark:text-green-400 animate-spin" />
             <p className="text-sm text-muted-foreground">Loading audit logs...</p>
           </div>
         ) : logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <div className="p-3 bg-gray-800 rounded-full">
-              <FileText className="w-8 h-8 text-gray-500" />
+            <div className="p-3 bg-muted/50 rounded-full">
+              <FileText className="w-8 h-8 text-muted-foreground" />
             </div>
             <div className="text-center max-w-sm">
-              <h3 className="font-medium text-gray-300">No audit log entries yet</h3>
+              <h3 className="font-medium text-muted-foreground">No audit log entries yet</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 Audit logs are created automatically when payments are verified, requests are
                 forwarded, and providers are registered. They&apos;ll appear here once your gateway
@@ -96,8 +96,8 @@ export default function AuditPage() {
                   key={log.id}
                   className="flex items-start gap-4 pb-4 border-b border-border last:pb-0 last:border-0"
                 >
-                  <div className="p-2 bg-gray-800 rounded-lg shrink-0">
-                    <Shield className="w-4 h-4 text-green-400" />
+                  <div className="p-2 bg-muted/50 rounded-lg shrink-0">
+                    <Shield className="w-4 h-4 text-green-600 dark:text-green-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -139,14 +139,14 @@ export default function AuditPage() {
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1 || isFetching}
-                    className="px-3 py-1 text-sm bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-muted/50 rounded disabled:opacity-50 hover:bg-muted transition-colors"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setPage((p) => p + 1)}
                     disabled={page >= data.totalPages || isFetching}
-                    className="px-3 py-1 text-sm bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-muted/50 rounded disabled:opacity-50 hover:bg-muted transition-colors"
                   >
                     Next
                   </button>

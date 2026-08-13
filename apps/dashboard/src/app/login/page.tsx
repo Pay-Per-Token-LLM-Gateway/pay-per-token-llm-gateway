@@ -79,7 +79,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <img
@@ -94,19 +94,19 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="card border-red-800/30 bg-red-950/10 mb-4">
+          <div className="card border-red-300/60 bg-red-50 dark:border-red-800/30 dark:bg-red-950/10 mb-4">
             <div className="flex items-start gap-3">
-              <div className="p-1.5 bg-red-900/20 rounded-lg shrink-0">
-                <AlertTriangle className="w-4 h-4 text-red-400" />
+              <div className="p-1.5 bg-red-100 dark:bg-red-900/20 rounded-lg shrink-0">
+                <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <p className="text-sm text-red-400">{error}</p>
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
                 <button
                   onClick={() => {
                     setError(null);
                     setStep('select');
                   }}
-                  className="text-xs text-green-400 hover:underline mt-1"
+                  className="text-xs text-green-600 dark:text-green-400 hover:underline mt-1"
                 >
                   Try again
                 </button>
@@ -118,7 +118,7 @@ export default function LoginPage() {
         {step === 'verifying' && (
           <div className="card mb-4">
             <div className="flex items-center gap-3">
-              <Loader2 className="w-5 h-5 text-green-400 animate-spin" />
+              <Loader2 className="w-5 h-5 text-green-600 dark:text-green-400 animate-spin" />
               <div>
                 <p className="text-sm font-medium">Verifying signature...</p>
                 <p className="text-xs text-muted-foreground">Confirming with the gateway</p>
@@ -133,7 +133,7 @@ export default function LoginPage() {
               key={wallet.type}
               onClick={() => handleConnect(wallet)}
               disabled={connecting !== null}
-              className="w-full flex items-center justify-between p-4 bg-card border border-border rounded-xl hover:border-green-800/50 transition-all disabled:opacity-50 group"
+              className="w-full flex items-center justify-between p-4 bg-card border border-border rounded-xl hover:border-green-600/60 dark:hover:border-green-800/50 transition-all disabled:opacity-50 group"
             >
               <div className="flex items-center gap-3">
                 <div
@@ -160,7 +160,7 @@ export default function LoginPage() {
           <a
             href="https://freighter.app"
             target="_blank"
-            className="text-green-400 hover:underline"
+            className="text-green-600 dark:text-green-400 hover:underline"
           >
             Install Freighter
           </a>
