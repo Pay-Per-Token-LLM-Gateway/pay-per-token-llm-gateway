@@ -38,7 +38,6 @@ model Route {
   id             String   @id @default(uuid())
   providerId     String
   path           String
-  upstreamUrl    String
   model          String
   pricingModel   String   @default("flat") // "flat" | "per_token"
   flatPrice      String?
@@ -51,9 +50,27 @@ model Route {
 
   provider       Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
   payments       Payment[]
+  upstreams      Upstream[]
 
   @@unique([providerId, path, model])
   @@index([providerId])
+  @@index([active])
+}
+
+// ── Upstreams (Load Balancing) ───────────────
+
+model Upstream {
+  id        String   @id @default(uuid())
+  routeId   String
+  url       String
+  weight    Int      @default(1)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  route     Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId])
   @@index([active])
 }
 

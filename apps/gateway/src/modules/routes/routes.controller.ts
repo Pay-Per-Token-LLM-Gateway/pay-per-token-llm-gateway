@@ -45,7 +45,7 @@ export class RoutesController {
     body: {
       providerId: string;
       path: string;
-      upstreamUrl: string;
+      upstreams: { url: string; weight?: number; active?: boolean }[];
       model: string;
       pricingModel: 'flat' | 'per_token';
       flatPrice?: string;
@@ -68,7 +68,7 @@ export class RoutesController {
     @Param('id') id: string,
     @Body()
     body: {
-      upstreamUrl?: string;
+      upstreams?: { url: string; weight?: number; active?: boolean }[];
       flatPrice?: string;
       perTokenPrice?: string;
       pricingModel?: 'flat' | 'per_token';

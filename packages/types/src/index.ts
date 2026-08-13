@@ -154,14 +154,22 @@ export interface Provider {
   updatedAt: string;
 }
 
+/** An upstream endpoint for load balancing */
+export interface UpstreamConfig {
+  id: string;
+  url: string;
+  weight: number;
+  active: boolean;
+}
+
 /** A protected route/endpoint configuration */
 export interface RouteConfig {
   id: string;
   providerId: string;
   /** The URL path pattern (e.g., "/v1/chat/completions") */
   path: string;
-  /** The upstream LLM endpoint to proxy to */
-  upstreamUrl: string;
+  /** The upstream LLM endpoints to proxy to (load balanced) */
+  upstreams: UpstreamConfig[];
   /** The model identifier */
   model: string;
   /** Pricing model for this route */

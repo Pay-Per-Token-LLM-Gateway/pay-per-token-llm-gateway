@@ -120,11 +120,17 @@ function enforcePricingPrice(
   }
 }
 
+const upstreamSchema = z.object({
+  url: z.string().url(),
+  weight: z.number().int().min(1).max(100).default(1),
+  active: z.boolean().default(true),
+});
+
 /** Base route fields (shared by create/update schemas). */
 const routeConfigBase = z.object({
   providerId: z.string().uuid(),
   path: z.string().min(1).startsWith('/'),
-  upstreamUrl: z.string().url(),
+  upstreams: z.array(upstreamSchema).min(1),
   model: z.string().min(1),
   pricingModel: pricingModelSchema,
   // Prices must be non-negative integer stroop amounts — a malformed string

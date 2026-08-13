@@ -52,7 +52,6 @@ function toRouteConfig(r: {
   id: string;
   providerId: string;
   path: string;
-  upstreamUrl: string;
   model: string;
   pricingModel: string;
   flatPrice: string | null;
@@ -62,12 +61,23 @@ function toRouteConfig(r: {
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
+  upstreams: {
+    id: string;
+    url: string;
+    weight: number;
+    active: boolean;
+  }[];
 }): RouteConfig {
   return {
     id: r.id,
     providerId: r.providerId,
     path: r.path,
-    upstreamUrl: r.upstreamUrl,
+    upstreams: r.upstreams.map((u) => ({
+      id: u.id,
+      url: u.url,
+      weight: u.weight,
+      active: u.active,
+    })),
     model: r.model,
     pricingModel: r.pricingModel as PricingModel,
     flatPrice: r.flatPrice || undefined,
@@ -93,6 +103,7 @@ export class RoutesService {
         provider: { walletAddress: ownerAddress },
         ...(providerId ? { providerId } : {}),
       },
+      include: { upstreams: true },
     });
 
     return routes.map(toRouteConfig);
@@ -106,6 +117,7 @@ export class RoutesService {
   async findByPathAndModel(path: string, model: string): Promise<RouteConfig | null> {
     const r = await prisma.route.findFirst({
       where: { path: { in: buildRoutePathCandidates(path) }, model, active: true },
+      include: { upstreams: true },
     });
 
     if (!r) return null;
@@ -116,6 +128,7 @@ export class RoutesService {
   async findById(id: string, ownerAddress: string): Promise<RouteConfig> {
     const r = await prisma.route.findFirst({
       where: { id, provider: { walletAddress: ownerAddress } },
+      include: { upstreams: true },
     });
     if (!r) throw new NotFoundException(`Route ${id} not found`);
 
@@ -131,7 +144,7 @@ export class RoutesService {
     data: {
       providerId: string;
       path: string;
-      upstreamUrl: string;
+      upstreams: { url: string; weight: number; active?: boolean }[];
       model: string;
       pricingModel: PricingModel;
       flatPrice?: string;
@@ -152,14 +165,17 @@ export class RoutesService {
       data: {
         providerId: data.providerId,
         path: data.path,
-        upstreamUrl: data.upstreamUrl,
         model: data.model,
         pricingModel: data.pricingModel,
         flatPrice: data.flatPrice,
         perTokenPrice: data.perTokenPrice,
         acceptedAssets: data.acceptedAssets || ['USDC'],
         rateLimit: data.rateLimit || 10,
+        upstreams: {
+          create: data.upstreams.map(u => ({ url: u.url, weight: u.weight || 1, active: u.active ?? true })),
+        },
       },
+      include: { upstreams: true },
     });
 
     logger.info('Route created', { routeId: r.id, path: r.path, model: r.model });
@@ -170,7 +186,7 @@ export class RoutesService {
   async update(
     id: string,
     data: Partial<{
-      upstreamUrl: string;
+      upstreams: { url: string; weight: number; active?: boolean }[];
       flatPrice: string;
       perTokenPrice: string;
       pricingModel: PricingModel;
@@ -186,7 +202,23 @@ export class RoutesService {
     });
     if (!existing) throw new NotFoundException(`Route ${id} not found`);
 
-    const r = await prisma.route.update({ where: { id }, data });
+    const { upstreams, ...rest } = data;
+
+    // To properly update upstreams in Prisma, we first delete old ones and recreate
+    // This is simple but effective for small arrays
+    const r = await prisma.route.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(upstreams ? {
+          upstreams: {
+            deleteMany: {},
+            create: upstreams.map(u => ({ url: u.url, weight: u.weight || 1, active: u.active ?? true })),
+          }
+        } : {})
+      },
+      include: { upstreams: true },
+    });
     return toRouteConfig(r);
   }
 

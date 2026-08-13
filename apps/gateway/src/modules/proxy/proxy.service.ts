@@ -48,6 +48,21 @@ class CircuitBreaker {
     throw new Error(`Circuit breaker open for ${upstreamUrl}. Retry in ${retryIn}s.`);
   }
 
+  /**
+   * Check if the circuit is currently open without throwing.
+   * Returns true if open (failing), false if closed or half-open.
+   */
+  isOpen(upstreamUrl: string): boolean {
+    const circuit = this.circuits.get(upstreamUrl);
+    if (!circuit?.open) return false;
+
+    const elapsed = Date.now() - circuit.lastFailureTime;
+    if (elapsed >= this.cooldownMs) {
+      return false; // half-open
+    }
+    return true;
+  }
+
   /** Record a successful call — reset the circuit. */
   recordSuccess(upstreamUrl: string): void {
     this.circuits.delete(upstreamUrl);
@@ -79,9 +94,26 @@ class CircuitBreaker {
 
 // ── Proxy Service ────────────────────────────
 
+import { LoadBalancer } from './load-balancer';
+
 @Injectable()
 export class ProxyService {
   private readonly circuitBreaker = new CircuitBreaker();
+  constructor(private readonly loadBalancer: LoadBalancer) {}
+
+  /**
+   * Expose circuit breaker state for the load balancer
+   */
+  isCircuitOpen(upstreamUrl: string): boolean {
+    return this.circuitBreaker.isOpen(upstreamUrl);
+  }
+
+  /**
+   * Select an upstream for the given route using the LoadBalancer
+   */
+  getUpstreamUrl(route: import('@x402/types').RouteConfig): string {
+    return this.loadBalancer.selectUpstream(route, (url) => this.isCircuitOpen(url)).url;
+  }
 
   /**
    * Forward a request to the upstream LLM endpoint (non-streaming).

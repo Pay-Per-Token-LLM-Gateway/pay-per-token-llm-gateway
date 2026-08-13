@@ -191,11 +191,17 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
   const createMutation = useCreateRoute();
   const [formError, setFormError] = useState<string | null>(null);
   const [pricingModel, setPricingModel] = useState<'flat' | 'per_token'>('flat');
+  const [upstreams, setUpstreams] = useState([{ url: '', weight: 1 }]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!provider) {
       setFormError('No provider configured. Set up your provider in Settings first.');
+      return;
+    }
+
+    if (upstreams.some(u => !u.url.trim())) {
+      setFormError('All upstream URLs must be filled.');
       return;
     }
 
@@ -207,7 +213,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
       {
         providerId: provider.id,
         path: formData.get('path') as string,
-        upstreamUrl: formData.get('upstreamUrl') as string,
+        upstreams: upstreams.map(u => ({ url: u.url.trim(), weight: Number(u.weight) || 1 })),
         model: formData.get('model') as string,
         pricingModel: (formData.get('pricingModel') as 'flat' | 'per_token') || 'flat',
         flatPrice: (formData.get('flatPrice') as string) || undefined,
@@ -220,6 +226,14 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
         onError: (err) => setFormError((err as Error).message),
       },
     );
+  };
+
+  const addUpstream = () => setUpstreams([...upstreams, { url: '', weight: 1 }]);
+  const removeUpstream = (index: number) => setUpstreams(upstreams.filter((_, i) => i !== index));
+  const updateUpstream = (index: number, field: 'url' | 'weight', value: string | number) => {
+    const newUpstreams = [...upstreams];
+    newUpstreams[index] = { ...newUpstreams[index], [field]: value };
+    setUpstreams(newUpstreams);
   };
 
   if (providerLoading) {
@@ -322,15 +336,51 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
             placeholder="/v1/chat/completions"
           />
         </div>
+
+        {/* Upstreams logic */}
         <div>
-          <label className="block text-sm mb-1">Upstream URL</label>
-          <input
-            name="upstreamUrl"
-            required
-            className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
-            placeholder="https://api.openai.com/v1/chat/completions"
-          />
+          <label className="block text-sm mb-1">Upstreams (Load Balancing)</label>
+          <div className="space-y-2">
+            {upstreams.map((upstream, idx) => (
+              <div key={idx} className="flex gap-2 items-center">
+                <input
+                  required
+                  value={upstream.url}
+                  onChange={(e) => updateUpstream(idx, 'url', e.target.value)}
+                  className="flex-1 px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  placeholder="https://api.openai.com/v1/chat/completions"
+                />
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max="100"
+                  value={upstream.weight}
+                  onChange={(e) => updateUpstream(idx, 'weight', parseInt(e.target.value) || 1)}
+                  className="w-20 px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  title="Traffic weight (1-100)"
+                />
+                {upstreams.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeUpstream(idx)}
+                    className="p-2 bg-red-900/30 text-red-400 rounded-lg hover:bg-red-900/50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={addUpstream}
+            className="mt-2 text-xs flex items-center gap-1 text-green-400 hover:text-green-300"
+          >
+            <Plus className="w-3 h-3" /> Add Upstream
+          </button>
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm mb-1">Model</label>

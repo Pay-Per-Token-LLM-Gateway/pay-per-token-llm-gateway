@@ -10,6 +10,8 @@ import { AdminModule } from '../admin/admin.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
+import { LoadBalancer } from './load-balancer';
+
 @Module({
   imports: [
     X402Module,
@@ -21,6 +23,6 @@ import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
     WebhooksModule,
   ],
   controllers: [ProxyController],
-  providers: [ProxyService, RateLimitGuard],
+  providers: [ProxyService, RateLimitGuard, LoadBalancer],
 })
 export class ProxyModule {}
