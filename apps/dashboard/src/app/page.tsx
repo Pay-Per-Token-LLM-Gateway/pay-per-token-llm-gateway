@@ -19,9 +19,28 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useAnalytics, useProvider, useTimeSeries } from '@/lib/hooks';
+import { useTheme } from '@/components/theme-provider';
 import { format } from 'date-fns';
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3000';
+
+/** Chart colors per theme — recharts needs explicit hex values (no CSS vars). */
+const CHART_COLORS = {
+  dark: {
+    grid: '#1f2937',
+    axis: '#6b7280',
+    tooltipBg: '#111827',
+    tooltipBorder: '#1f2937',
+    tooltipText: '#f9fafb',
+  },
+  light: {
+    grid: '#e5e7eb',
+    axis: '#6b7280',
+    tooltipBg: '#ffffff',
+    tooltipBorder: '#e5e7eb',
+    tooltipText: '#111827',
+  },
+};
 
 /** Convert a stroop amount string to USDC units without float precision loss. */
 function formatStroops(stroops: string | undefined): string {
@@ -33,6 +52,8 @@ function formatStroops(stroops: string | undefined): string {
 }
 
 export default function DashboardPage() {
+  const { theme } = useTheme();
+  const chartColors = CHART_COLORS[theme];
   const { data: provider } = useProvider();
   const { data: stats, isLoading, error } = useAnalytics(provider?.id);
   const { data: timeSeriesData } = useTimeSeries(provider?.id, 60, 24);
@@ -74,7 +95,7 @@ export default function DashboardPage() {
               <p className="text-red-400">Failed to load analytics: {(error as Error).message}</p>
               <p className="text-muted-foreground text-sm mt-2">
                 Make sure the gateway is running at{' '}
-                <code className="bg-gray-800 px-1 rounded">{GATEWAY_URL}</code>
+                <code className="bg-muted px-1 rounded">{GATEWAY_URL}</code>
               </p>
             </>
           )}
@@ -159,15 +180,15 @@ export default function DashboardPage() {
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
-              <YAxis stroke="#6b7280" fontSize={12} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+              <XAxis dataKey="name" stroke={chartColors.axis} fontSize={12} />
+              <YAxis stroke={chartColors.axis} fontSize={12} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#111827',
-                  border: '1px solid #1f2937',
+                  backgroundColor: chartColors.tooltipBg,
+                  border: `1px solid ${chartColors.tooltipBorder}`,
                   borderRadius: '8px',
-                  color: '#f9fafb',
+                  color: chartColors.tooltipText,
                 }}
               />
               <Line

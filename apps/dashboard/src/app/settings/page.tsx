@@ -60,7 +60,7 @@ export default function SettingsPage() {
         </div>
         <div className="card max-w-2xl">
           <div className="flex items-center gap-3 py-4">
-            <Loader2 className="w-5 h-5 text-green-400 animate-spin" />
+            <Loader2 className="w-5 h-5 text-green-600 dark:text-green-400 animate-spin" />
             <p className="text-sm text-muted-foreground">Loading provider settings...</p>
           </div>
         </div>
@@ -77,13 +77,15 @@ export default function SettingsPage() {
             Configure your provider profile and gateway preferences
           </p>
         </div>
-        <div className="card max-w-2xl border-red-800/30 bg-red-950/10">
+        <div className="card max-w-2xl border-red-300/60 bg-red-50 dark:border-red-800/30 dark:bg-red-950/10">
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
+            <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg shrink-0">
+              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
             </div>
             <div>
-              <h3 className="font-medium text-red-400">Failed to load settings</h3>
+              <h3 className="font-medium text-red-600 dark:text-red-400">
+                Failed to load settings
+              </h3>
               <p className="text-sm text-muted-foreground mt-1">{(error as Error).message}</p>
             </div>
           </div>
@@ -103,13 +105,17 @@ export default function SettingsPage() {
 
       {saveMutation.isError && (
         <div className="card max-w-2xl border-red-800/50">
-          <p className="text-red-400 text-sm">{(saveMutation.error as Error).message}</p>
+          <p className="text-red-600 dark:text-red-400 text-sm">
+            {(saveMutation.error as Error).message}
+          </p>
         </div>
       )}
 
       {success && (
-        <div className="card max-w-2xl border-green-800/50">
-          <p className="text-green-400 text-sm">✓ Settings saved successfully</p>
+        <div className="card max-w-2xl border-green-300/60 dark:border-green-800/50">
+          <p className="text-green-600 dark:text-green-400 text-sm">
+            ✓ Settings saved successfully
+          </p>
         </div>
       )}
 
@@ -124,7 +130,7 @@ export default function SettingsPage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
               placeholder="My LLM Provider"
               required
             />
@@ -137,7 +143,7 @@ export default function SettingsPage() {
               type="text"
               value={walletAddress}
               disabled
-              className="w-full px-3 py-2 bg-gray-800/50 border border-border rounded-lg text-sm font-mono opacity-70 cursor-not-allowed"
+              className="w-full px-3 py-2 bg-muted/40 border border-border rounded-lg text-sm font-mono opacity-70 cursor-not-allowed"
               title="Locked to your authenticated wallet"
             />
             <p className="text-xs text-muted-foreground mt-1">
@@ -153,7 +159,7 @@ export default function SettingsPage() {
               type="text"
               value={payoutWalletAddress}
               onChange={(e) => setPayoutWalletAddress(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
               placeholder="G..."
               pattern="^(G[A-Z2-7]{55})?$"
               title="Enter a valid Stellar wallet address starting with G, or leave empty"
@@ -165,7 +171,7 @@ export default function SettingsPage() {
               type="url"
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
               placeholder="https://your-service.com/webhook"
             />
             <p className="text-xs text-muted-foreground mt-1">
@@ -179,7 +185,7 @@ export default function SettingsPage() {
               type="password"
               value={webhookSecret}
               onChange={(e) => setWebhookSecret(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
               placeholder="Used to sign webhooks (X-x402-Signature)"
             />
           </div>
@@ -203,7 +209,7 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold mb-2">Connection Details</h2>
           <div className="text-sm text-muted-foreground space-y-1">
             <p>
-              Provider ID: <code className="bg-gray-800 px-1 rounded text-xs">{provider.id}</code>
+              Provider ID: <code className="bg-muted/50 px-1 rounded text-xs">{provider.id}</code>
             </p>
             <p>
               Status:{' '}

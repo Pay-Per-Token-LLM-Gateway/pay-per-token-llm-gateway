@@ -31,7 +31,7 @@ export default function PaymentsPage() {
         <div className="card">
           {isUnauthenticated ? (
             <>
-              <p className="text-yellow-400">Authentication required</p>
+              <p className="text-yellow-600 dark:text-yellow-400">Authentication required</p>
               <p className="text-muted-foreground text-sm mt-2">
                 Your session has expired or you are not logged in.
               </p>
@@ -43,7 +43,9 @@ export default function PaymentsPage() {
               </a>
             </>
           ) : (
-            <p className="text-red-400">Failed to load: {(error as Error).message}</p>
+            <p className="text-red-600 dark:text-red-400">
+              Failed to load: {(error as Error).message}
+            </p>
           )}
         </div>
       </div>
@@ -64,7 +66,7 @@ export default function PaymentsPage() {
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
+            <Loader2 className="w-8 h-8 text-green-600 dark:text-green-400 animate-spin" />
             <p className="text-sm text-muted-foreground">Loading payments...</p>
           </div>
         ) : payments.length === 0 ? (
@@ -96,7 +98,7 @@ export default function PaymentsPage() {
                 {payments.map((p) => (
                   <tr
                     key={p.id}
-                    className="border-b border-border last:border-0 hover:bg-gray-800/30 transition-colors"
+                    className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
@@ -107,10 +109,10 @@ export default function PaymentsPage() {
                           <>
                             <button
                               onClick={() => copyTxHash(p.txHash)}
-                              className="hover:text-green-400 transition-colors"
+                              className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
                             >
                               {copied === p.txHash ? (
-                                <Check className="w-3 h-3 text-green-400" />
+                                <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
                               ) : (
                                 <Copy className="w-3 h-3" />
                               )}
@@ -118,7 +120,7 @@ export default function PaymentsPage() {
                             <a
                               href={`https://stellar.expert/explorer/testnet/tx/${p.txHash}`}
                               target="_blank"
-                              className="hover:text-green-400 transition-colors"
+                              className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
                             >
                               <ExternalLink className="w-3 h-3" />
                             </a>
@@ -159,14 +161,14 @@ export default function PaymentsPage() {
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1 || isFetching}
-                    className="px-3 py-1 text-sm bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-muted/50 rounded disabled:opacity-50 hover:bg-muted transition-colors"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setPage((p) => p + 1)}
                     disabled={page >= data.totalPages || isFetching}
-                    className="px-3 py-1 text-sm bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-muted/50 rounded disabled:opacity-50 hover:bg-muted transition-colors"
                   >
                     Next
                   </button>

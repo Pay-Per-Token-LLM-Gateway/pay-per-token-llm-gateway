@@ -22,12 +22,14 @@ export default function ErrorPage({
           alt="x402 Logo"
           className="w-16 h-16 rounded-xl shadow-lg shadow-red-500/20 opacity-80"
         />
-        <div className="card w-full border-red-800/30 bg-red-950/10 text-center">
+        <div className="card w-full border-red-300/60 bg-red-50 dark:border-red-800/30 dark:bg-red-950/10 text-center">
           <div className="flex flex-col items-center gap-3">
-            <div className="p-3 bg-red-900/20 rounded-xl">
-              <AlertTriangle className="w-6 h-6 text-red-400" />
+            <div className="p-3 bg-red-100 dark:bg-red-900/20 rounded-xl">
+              <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
             </div>
-            <h2 className="text-lg font-semibold text-red-400">Something went wrong</h2>
+            <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
+              Something went wrong
+            </h2>
             <p className="text-sm text-muted-foreground">
               {error.message || 'An unexpected error occurred. Please try again.'}
             </p>

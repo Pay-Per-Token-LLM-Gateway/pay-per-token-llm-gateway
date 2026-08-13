@@ -79,13 +79,13 @@ export default function WebhooksPage() {
       </div>
 
       {error && (
-        <div className="card border-red-800/30 bg-red-950/10">
+        <div className="card border-red-300/60 bg-red-50 dark:border-red-800/30 dark:bg-red-950/10">
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
+            <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg shrink-0">
+              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-medium text-red-400">Error</h3>
+              <h3 className="font-medium text-red-600 dark:text-red-400">Error</h3>
               <p className="text-sm text-muted-foreground mt-1">{error}</p>
             </div>
           </div>
@@ -96,28 +96,30 @@ export default function WebhooksPage() {
         <div
           className={
             testResult.success
-              ? 'card border-green-800/30 bg-green-950/10'
-              : 'card border-red-800/30 bg-red-950/10'
+              ? 'card border-green-300/60 bg-green-50 dark:border-green-300/60 dark:border-green-800/30 dark:bg-green-950/10'
+              : 'card border-red-300/60 bg-red-50 dark:border-red-800/30 dark:bg-red-950/10'
           }
         >
           <div className="flex items-start gap-3">
             <div
               className={
                 testResult.success
-                  ? 'p-2 bg-green-900/20 rounded-lg shrink-0'
-                  : 'p-2 bg-red-900/20 rounded-lg shrink-0'
+                  ? 'p-2 bg-green-100 dark:bg-green-900/20 rounded-lg shrink-0'
+                  : 'p-2 bg-red-100 dark:bg-red-900/20 rounded-lg shrink-0'
               }
             >
               {testResult.success ? (
-                <CheckCircle className="w-5 h-5 text-green-400" />
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
               ) : (
-                <AlertTriangle className="w-5 h-5 text-red-400" />
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
               )}
             </div>
             <div className="flex-1">
               <h3
                 className={
-                  testResult.success ? 'font-medium text-green-400' : 'font-medium text-red-400'
+                  testResult.success
+                    ? 'font-medium text-green-600 dark:text-green-400'
+                    : 'font-medium text-red-600 dark:text-red-400'
                 }
               >
                 {testResult.success ? 'Test Successful' : 'Test Failed'}
@@ -129,7 +131,7 @@ export default function WebhooksPage() {
       )}
 
       {showAdd && (
-        <div className="card border-green-800/30">
+        <div className="card border-green-300/60 dark:border-green-800/30">
           <h3 className="font-semibold mb-4">Add Webhook Endpoint</h3>
           <div className="space-y-4">
             <div>
@@ -139,7 +141,7 @@ export default function WebhooksPage() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://your-service.com/webhook"
-                className="w-full px-3 py-2 bg-gray-900 border border-border rounded-lg text-sm focus:outline-none focus:border-green-500/50 transition-colors"
+                className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:outline-none focus:border-green-500/50 transition-colors"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Your endpoint must accept POST requests with JSON payloads.
@@ -175,7 +177,7 @@ export default function WebhooksPage() {
               </button>
               <button
                 onClick={handleCancel}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-2 bg-muted/50 hover:bg-muted text-muted-foreground rounded-lg text-sm font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -186,11 +188,11 @@ export default function WebhooksPage() {
 
       <div className="card">
         <div className="flex flex-col items-center justify-center py-12 gap-4">
-          <div className="p-3 bg-gray-800 rounded-full">
-            <Globe className="w-8 h-8 text-gray-500" />
+          <div className="p-3 bg-muted/50 rounded-full">
+            <Globe className="w-8 h-8 text-muted-foreground" />
           </div>
           <div className="text-center max-w-md">
-            <h3 className="font-medium text-gray-300">Configure your webhooks</h3>
+            <h3 className="font-medium text-muted-foreground">Configure your webhooks</h3>
             <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
               Webhooks let your application receive real-time notifications when events happen on
               the gateway — like payments received, requests forwarded, or verification failures.
