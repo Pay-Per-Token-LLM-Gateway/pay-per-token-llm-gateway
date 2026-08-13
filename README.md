@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Stellar-Testnet-green" alt="Stellar Testnet" />
+  <img src="https://img.shields.io/badge/Stellar-Testnet%20%7C%20Mainnet-green" alt="Stellar Testnet & Mainnet" />
   <img src="https://img.shields.io/badge/NestJS-10.x-red" alt="NestJS" />
   <img src="https://img.shields.io/badge/Next.js-14.x-black" alt="Next.js" />
   <img src="https://img.shields.io/badge/Soroban-Rust-orange" alt="Soroban Rust" />
@@ -105,9 +105,23 @@ Caller                Gateway                 Stellar              Upstream LLM
   │                      │◄───────────────────────────── response ──────│
   │◄─ LLM response ──────│                       │                      │
 ```
-
+ 
+### Supported Networks
+ 
+The gateway supports **both testnet and mainnet** via the `STELLAR_NETWORK` environment variable:
+ 
+| Network   | `STELLAR_NETWORK` | USDC Issuer                          | Horizon URL                    | Soroban RPC URL                     | Passphrase                           |
+| --------- | ----------------- | ------------------------------------ | ------------------------------ | ----------------------------------- | ------------------------------------ |
+| Testnet   | `testnet` (default) | `GBBD47...` (auto-resolved)        | `https://horizon-testnet.stellar.org` | `https://soroban-testnet.stellar.org` | `Test SDF Network ; September 2015` |
+| Mainnet   | `mainnet`           | `GA5ZSE...` (auto-resolved)        | `https://horizon.stellar.org`       | `https://soroban-mainnet.stellar.org` | `Public Global Stellar Network ; September 2015` |
+| Futurenet | `futurenet`         | (configure manually)               | `https://horizon-futurenet.stellar.org` | `https://soroban-futurenet.stellar.org` | `Test SDF Future Network ; October 2022` |
+ 
+The USDC issuer is resolved automatically from `STELLAR_NETWORK` — override with `USDC_ISSUER` only for bridged variants.
+ 
+See [`.env.mainnet.example`](.env.mainnet.example) for a complete mainnet configuration template.
+ 
 ---
-
+ 
 ## ✨ Features
 
 ### Core Gateway
@@ -570,8 +584,8 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the complete step-by-step guide.
 - [ ] Prepaid credit escrow contract integration
 
 ### 💡 v3 — Planned
-
-- [ ] Stellar mainnet launch
+ 
+- [x] Stellar mainnet launch
 - [ ] Multi-chain support (EVM chains, Solana)
 - [ ] Decentralized provider registry on Soroban
 - [ ] Fiat on-ramp integration (credit card → USDC → LLM)
