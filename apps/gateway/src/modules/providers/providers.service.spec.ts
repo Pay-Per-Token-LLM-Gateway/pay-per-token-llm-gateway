@@ -3,6 +3,20 @@ import { ProvidersService } from './providers.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { validateWebhookUrl } from '../webhooks/webhooks.service';
 
+// Mock @x402/config
+const mockGetConfig = jest.fn();
+jest.mock('@x402/config', () => ({
+  getConfig: () => mockGetConfig(),
+}));
+
+// Mock @stellar/stellar-sdk
+const mockIsValidEd25519PublicKey = jest.fn();
+jest.mock('@stellar/stellar-sdk', () => ({
+  StrKey: {
+    isValidEd25519PublicKey: (...args: unknown[]) => mockIsValidEd25519PublicKey(...args),
+  },
+}));
+
 // Mock @x402/database
 jest.mock('@x402/database', () => ({
   prisma: {
@@ -22,8 +36,12 @@ jest.mock('../webhooks/webhooks.service', () => ({
 }));
 
 import { prisma } from '@x402/database';
+import { getConfig } from '@x402/config';
+import { StrKey } from '@stellar/stellar-sdk';
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
+const mockGetConfigTyped = getConfig as jest.MockedFunction<typeof getConfig>;
+const mockStrKey = StrKey as jest.Mocked<typeof StrKey>;
 const mockValidateWebhookUrl = validateWebhookUrl as jest.MockedFunction<typeof validateWebhookUrl>;
 
 const WALLET = 'GA5ZSE6VKPVFLEXMWJQBGHE4FJHKQIFSJMLQ7H4VFQB4UHLEH5IOVK3F';
@@ -57,6 +75,12 @@ describe('ProvidersService', () => {
     jest.clearAllMocks();
     // Default: any non-empty URL passes the SSRF guard unchanged.
     mockValidateWebhookUrl.mockImplementation(async (url) => url);
+    // Default: approval not required
+    mockGetConfig.mockReturnValue({
+      security: { providerApprovalRequired: false },
+    } as ReturnType<typeof getConfig>);
+    // Default: valid Stellar key
+    mockIsValidEd25519PublicKey.mockReturnValue(true);
   });
 
   describe('findAll', () => {
@@ -168,6 +192,73 @@ describe('ProvidersService', () => {
       );
     });
 
+    it('rejects an invalid payout wallet address with BadRequestException', async () => {
+      mockIsValidEd25519PublicKey.mockReturnValue(false);
+
+      await expect(
+        service.create(
+          { name: 'Bad Payout', payoutWalletAddress: 'GINVALID...' },
+          WALLET,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.provider.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects payout wallet address matching the auth wallet', async () => {
+      mockIsValidEd25519PublicKey.mockReturnValue(true);
+
+      await expect(
+        service.create(
+          { name: 'Same Wallet', payoutWalletAddress: WALLET },
+          WALLET,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.provider.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a valid payout wallet address different from auth wallet', async () => {
+      mockIsValidEd25519PublicKey.mockReturnValue(true);
+      const mockCreated = makeProvider({
+        id: 'new-id',
+        name: 'Good Payout',
+        payoutWalletAddress: OTHER_WALLET,
+      });
+      (mockPrisma.provider.create as jest.Mock).mockResolvedValue(mockCreated);
+
+      const result = await service.create(
+        { name: 'Good Payout', payoutWalletAddress: OTHER_WALLET },
+        WALLET,
+      );
+
+      expect(mockPrisma.provider.create).toHaveBeenCalled();
+      expect(result.name).toBe('Good Payout');
+    });
+
+    it('creates provider as inactive when approval is required', async () => {
+      mockIsValidEd25519PublicKey.mockReturnValue(true);
+      mockGetConfig.mockReturnValue({
+        security: { providerApprovalRequired: true },
+      } as ReturnType<typeof getConfig>);
+      const mockCreated = makeProvider({
+        id: 'new-id',
+        name: 'Pending Approval',
+        active: false,
+      });
+      (mockPrisma.provider.create as jest.Mock).mockResolvedValue(mockCreated);
+
+      const result = await service.create(
+        { name: 'Pending Approval' },
+        WALLET,
+      );
+
+      expect(mockPrisma.provider.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ active: false }),
+        }),
+      );
+      expect(result.active).toBe(false);
+    });
+
     it('rejects an SSRF-target webhook URL with BadRequestException', async () => {
       mockValidateWebhookUrl.mockRejectedValue(
         new Error('Webhook URL must point to a public IP address'),
@@ -272,6 +363,30 @@ describe('ProvidersService', () => {
       const result = await service.findByWalletAddress(WALLET);
 
       expect(result?.walletAddress).toBe(WALLET);
+    });
+  });
+
+  describe('approve', () => {
+    it('approves a provider owned by the wallet', async () => {
+      (mockPrisma.provider.findFirst as jest.Mock).mockResolvedValue(makeProvider());
+      (mockPrisma.provider.update as jest.Mock).mockResolvedValue(
+        makeProvider({ active: true }),
+      );
+
+      const result = await service.approve('p-1', WALLET);
+
+      expect(mockPrisma.provider.update).toHaveBeenCalledWith({
+        where: { id: 'p-1' },
+        data: { active: true },
+      });
+      expect(result.active).toBe(true);
+    });
+
+    it("throws NotFoundException when approving another wallet's provider", async () => {
+      (mockPrisma.provider.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.approve('p-other', OTHER_WALLET)).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.provider.update).not.toHaveBeenCalled();
     });
   });
 });

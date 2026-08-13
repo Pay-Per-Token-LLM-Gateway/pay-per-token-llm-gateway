@@ -341,3 +341,9 @@ export function updateProvider(
     body: JSON.stringify(data),
   });
 }
+
+export function approveProvider(id: string): Promise<ProviderResponse> {
+  return request<ProviderResponse>(`/providers/${id}/approve`, {
+    method: 'POST',
+  });
+}

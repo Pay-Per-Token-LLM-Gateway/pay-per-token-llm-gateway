@@ -170,6 +170,8 @@ export interface GatewayConfig {
      * comma-separated list of proxy IPs.
      */
     trustProxy: string;
+    /** When true, new providers start inactive and require admin approval. */
+    providerApprovalRequired: boolean;
   };
 }
 
@@ -361,6 +363,7 @@ export function loadConfig(): GatewayConfig {
       corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3001').split(','),
       authDevMode: process.env.AUTH_DEV_MODE === 'true',
       trustProxy: process.env.TRUST_PROXY || '1',
+      providerApprovalRequired: process.env.PROVIDER_APPROVAL_REQUIRED === 'true',
     },
 
     contracts: {
