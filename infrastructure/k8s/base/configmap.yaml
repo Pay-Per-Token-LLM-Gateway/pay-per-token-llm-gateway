@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x402-config
+  namespace: x402-gateway
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  HOST: "0.0.0.0"
+  STELLAR_NETWORK: "testnet"
+  HORIZON_URL: "https://horizon-testnet.stellar.org"
+  SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org"
+  USDC_ISSUER: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+  REDIS_URL: "redis://redis:6379"
+  CORS_ORIGINS: "http://localhost:3001,https://x402-dashboard.vercel.app"
