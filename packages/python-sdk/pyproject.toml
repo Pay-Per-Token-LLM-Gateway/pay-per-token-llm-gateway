@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "x402"
+version = "0.1.0"
+description = "Python SDK and LangChain integration for x402 Pay-Per-Token Gateway"
+authors = ["x402 <hello@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "^2.31.0"
+stellar-sdk = "^9.0.0"
+langchain-core = "^0.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

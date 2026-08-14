@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: x402-dashboard
+spec:
+  selector:
+    app: x402-dashboard
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3001
+  type: ClusterIP

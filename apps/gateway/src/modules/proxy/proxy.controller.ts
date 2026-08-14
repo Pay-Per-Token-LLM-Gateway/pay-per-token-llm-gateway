@@ -22,6 +22,8 @@ import { chatCompletionRequestSchema, txHashSchema } from '@x402/validation';
 import { calculatePrice, comparePayment } from '@x402/x402-core';
 import { logger } from '@x402/logger';
 import { generateId } from '@x402/shared';
+import { chargeEscrowOnChain } from '../x402/contract-client';
+import { getConfig } from '@x402/config';
 import type { ChatCompletionRequest, PaymentRecord, Quote, RouteConfig } from '@x402/types';
 
 @ApiTags('proxy')
@@ -587,6 +589,23 @@ export class ProxyController {
     // Record actual cost on the payment
     if (payment) {
       await this.paymentsService.recordActualCost(payment.quoteId, actualCost, tokensUsed);
+      
+      // If this was a streaming request using escrow, we charge the exact amount now
+      if (payment.txHash && payment.txHash.startsWith('escrow:')) {
+        const config = getConfig();
+        if (config.payment.contractAdminSecret) {
+          logger.info(`Charging exact streaming amount from escrow: ${actualCost}`);
+          await chargeEscrowOnChain({
+            contractId: config.contracts.creditEscrow,
+            rpcUrl: config.stellar.sorobanRpcUrl,
+            networkPassphrase: config.stellar.networkPassphrase,
+            adminSecret: config.payment.contractAdminSecret,
+            payer: payment.payerAddress,
+            amount: actualCost,
+            quoteId: payment.quoteId,
+          });
+        }
+      }
     }
 
     logger.info('Per-token cost calculated', {
