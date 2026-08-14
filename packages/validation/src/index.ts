@@ -157,8 +157,11 @@ export const routeUpdateSchema = routeConfigBase
 // ── Payment ──────────────────────────────────
 
 export const verifyPaymentSchema = z.object({
-  txHash: txHashSchema,
   quoteId: z.string().uuid(),
+  txHash: txHashSchema.optional(),
+  escrowPayerAddress: stellarAddressSchema.optional(),
+}).refine(data => data.txHash || data.escrowPayerAddress, {
+  message: "Debe proveer txHash o escrowPayerAddress",
 });
 
 export const paymentReceiptSchema = z.object({

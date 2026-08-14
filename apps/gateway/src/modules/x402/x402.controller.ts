@@ -36,13 +36,15 @@ export class X402Controller {
    */
   @Post('verify')
   @HttpCode(HttpStatus.OK)
-  async verifyPayment(@Body() body: { txHash: string; quoteId: string }) {
+  async verifyPayment(
+    @Body() body: { txHash?: string; escrowPayerAddress?: string; quoteId: string },
+  ) {
     const parsed = verifyPaymentSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.errors);
     }
 
-    const { txHash, quoteId } = parsed.data;
+    const { txHash, escrowPayerAddress, quoteId } = parsed.data;
 
     // Look up the quote from cache/payment store
     const storedPayment = await this.paymentsService.findByQuoteId(quoteId);
@@ -58,7 +60,15 @@ export class X402Controller {
     }
 
     const quote = storedPayment.receiptJson as Quote;
-    const verification = await this.x402Service.verifyPayment(txHash, quote);
+
+    let verification;
+    if (escrowPayerAddress) {
+      verification = await this.x402Service.verifyEscrowPayment(escrowPayerAddress, quote);
+    } else if (txHash) {
+      verification = await this.x402Service.verifyPayment(txHash, quote);
+    } else {
+      throw new BadRequestException('txHash or escrowPayerAddress is required');
+    }
 
     if (verification.verified) {
       const receipt = await this.paymentsService.confirmPayment(quoteId, verification);
@@ -66,7 +76,7 @@ export class X402Controller {
         // A concurrent request claimed this hash first — single-use holds.
         return {
           verified: false,
-          txHash,
+          txHash: verification.txHash,
           payerAddress: '',
           amount: '0',
           asset: quote.asset,

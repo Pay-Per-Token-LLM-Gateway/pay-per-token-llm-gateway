@@ -9,7 +9,7 @@ import {
 } from '@x402/x402-core';
 import { getConfig } from '@x402/config';
 import { logger } from '@x402/logger';
-import { isPaymentUsedOnChain, recordPaymentOnChain } from './contract-client';
+import { isPaymentUsedOnChain, recordPaymentOnChain, chargeEscrowOnChain } from './contract-client';
 import type { Quote, PaymentVerification, PaymentReceipt, RouteConfig } from '@x402/types';
 import type { PrismaClient } from '@x402/database';
 
@@ -145,6 +145,68 @@ export class X402Service {
     }
 
     return verification;
+  }
+
+  /**
+   * Verify an escrow payment.
+   *
+   * Deducts prepaid balance from the credit-escrow Soroban contract.
+   * If successful, generates a synthetic txHash for DB storage.
+   */
+  async verifyEscrowPayment(payerAddress: string, quote: Quote): Promise<PaymentVerification> {
+    const config = getConfig();
+
+    if (!config.payment.contractAdminSecret) {
+      return {
+        verified: false,
+        txHash: `escrow:${quote.id}`,
+        payerAddress,
+        amount: quote.amount,
+        asset: quote.asset,
+        ledger: 0,
+        timestamp: 0,
+        failureReason: 'Escrow payments are disabled (no admin secret)',
+      };
+    }
+
+    // Call the credit-escrow contract
+    const result = await chargeEscrowOnChain({
+      contractId: config.contracts.creditEscrow,
+      rpcUrl: config.stellar.sorobanRpcUrl,
+      networkPassphrase: config.stellar.networkPassphrase,
+      adminSecret: config.payment.contractAdminSecret,
+      payer: payerAddress,
+      amount: quote.amount,
+      quoteId: quote.id,
+    });
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    // Use a synthetic hash that acts as a unique identifier for replay protection.
+    // The prefix ensures it doesn't collide with any valid SHA-256 hash.
+    const syntheticTxHash = `escrow:${quote.id}`;
+
+    if (!result.charged) {
+      return {
+        verified: false,
+        txHash: syntheticTxHash,
+        payerAddress,
+        amount: quote.amount,
+        asset: quote.asset,
+        ledger: 0,
+        timestamp,
+        failureReason: result.error || 'Failed to charge escrow balance',
+      };
+    }
+
+    return {
+      verified: true,
+      txHash: syntheticTxHash,
+      payerAddress,
+      amount: quote.amount,
+      asset: quote.asset,
+      ledger: 0, // Soroban RPC doesn't currently easily expose the ledger of the specific invocation without parsing the whole meta
+      timestamp,
+    };
   }
 
   /**
