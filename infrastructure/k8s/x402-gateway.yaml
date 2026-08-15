@@ -1,0 +1,248 @@
+# Kubernetes deployment manifests for the x402 LLM Gateway.
+# Covers postgres, redis, gateway, and dashboard. Secrets use placeholders —
+# populate the `x402-secrets` Secret (or a sealed-secret / external secret
+# manager) before applying in a real cluster.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: x402-config
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+data:
+  STELLAR_NETWORK: testnet
+  HORIZON_URL: https://horizon-testnet.stellar.org
+  SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+  USDC_ISSUER: GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
+  NODE_ENV: production
+  PORT: "3000"
+  HOST: "0.0.0.0"
+  REDIS_URL: redis://x402-redis:6379
+  DATABASE_URL: postgresql://x402:$(POSTGRES_PASSWORD)@x402-postgres:5432/x402_gateway
+  NEXT_PUBLIC_GATEWAY_URL: http://x402-gateway:3000
+  CORS_ORIGINS: http://localhost:3001,https://x402-dashboard.vercel.app
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: x402-secrets
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+type: Opaque
+stringData:
+  # Replace these before applying to a real cluster.
+  POSTGRES_PASSWORD: x402_dev_password
+  JWT_SECRET: change-me-to-openssl-rand-base64-32
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: x402-postgres
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+    app: x402-postgres
+spec:
+  serviceName: x402-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: x402-postgres
+  template:
+    metadata:
+      labels:
+        app: x402-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_DB
+              value: x402_gateway
+            - name: POSTGRES_USER
+              value: x402
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: x402-secrets
+                  key: POSTGRES_PASSWORD
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "x402", "-d", "x402_gateway"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "x402", "-d", "x402_gateway"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: pg-data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: pg-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: x402-postgres
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+spec:
+  selector:
+    app: x402-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x402-redis
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+    app: x402-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: x402-redis
+  template:
+    metadata:
+      labels:
+        app: x402-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: x402-redis
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+spec:
+  selector:
+    app: x402-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x402-gateway
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+    app: x402-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: x402-gateway
+  template:
+    metadata:
+      labels:
+        app: x402-gateway
+    spec:
+      containers:
+        - name: gateway
+          image: paypertoken/gateway:latest
+          envFrom:
+            - configMapRef:
+                name: x402-config
+            - secretRef:
+                name: x402-secrets
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: x402-gateway
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+spec:
+  selector:
+    app: x402-gateway
+  ports:
+    - port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x402-dashboard
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+    app: x402-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: x402-dashboard
+  template:
+    metadata:
+      labels:
+        app: x402-dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: paypertoken/dashboard:latest
+          envFrom:
+            - configMapRef:
+                name: x402-config
+          ports:
+            - containerPort: 3001
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: x402-dashboard
+  labels:
+    app.kubernetes.io/part-of: x402-gateway
+spec:
+  selector:
+    app: x402-dashboard
+  ports:
+    - port: 3001
+      targetPort: 3001
