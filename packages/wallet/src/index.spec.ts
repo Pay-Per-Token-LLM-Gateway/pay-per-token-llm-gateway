@@ -7,6 +7,7 @@ import {
   getHorizonUrl,
   getSorobanRpcUrl,
   buildPaymentTransaction,
+  buildUnsignedPaymentTransaction,
   createHorizonServer,
   accountExists,
   getAccountBalances,
@@ -306,5 +307,112 @@ describe('signChallenge / verifyChallenge', () => {
 
   it('rejects a signature that is not valid base64', () => {
     expect(verifyChallenge(SOURCE_PUBLIC, CHALLENGE, '!!!not-base64!!!')).toBe(false);
+  });
+});
+
+// ── Unsigned transaction builder (external signing) ─────────
+// Issue #8: cover the externally-signed payment builder used by wallet
+// extensions / agent SDKs. These must NOT sign — they return an unsigned XDR
+// that a separate signer can complete.
+
+describe('buildUnsignedPaymentTransaction', () => {
+  it('returns an unsigned XDR + hash for a USDC payment', async () => {
+    const result = await buildUnsignedPaymentTransaction({
+      sourcePublicKey: SOURCE_PUBLIC,
+      destination: DEST_PUBLIC,
+      amount: '5.5',
+      asset: 'USDC',
+      assetIssuer: USDC_ISSUER,
+      memo: undefined,
+      network: 'testnet',
+      horizonUrl: HORIZON_URL,
+    });
+
+    expect(result.txHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.txXdr).toMatch(/^[A-Za-z0-9+/=]+$/);
+    expect(loadAccountSpy).toHaveBeenCalledWith(SOURCE_PUBLIC);
+
+    const decoded = TransactionBuilder.fromXDR(result.txXdr, Networks.TESTNET) as any;
+    expect(decoded.hash().toString('hex')).toBe(result.txHash);
+    expect(decoded.source).toBe(SOURCE_PUBLIC);
+
+    const op = decoded.operations[0];
+    expect(op.type).toBe('payment');
+    expect(op.destination).toBe(DEST_PUBLIC);
+    expect(parseFloat(op.amount)).toBe(5.5);
+    expect(op.asset.getCode()).toBe('USDC');
+    expect(op.asset.getIssuer()).toBe(USDC_ISSUER);
+
+    // Critical: the unsigned builder must NOT have been signed yet.
+    expect(decoded.signatures).toHaveLength(0);
+  });
+
+  it('builds a native XLM payment without an issuer and leaves it unsigned', async () => {
+    const result = await buildUnsignedPaymentTransaction({
+      sourcePublicKey: SOURCE_PUBLIC,
+      destination: DEST_PUBLIC,
+      amount: '5.5',
+      asset: 'XLM',
+      assetIssuer: undefined,
+      memo: undefined,
+      network: 'testnet',
+      horizonUrl: HORIZON_URL,
+    });
+
+    const decoded = TransactionBuilder.fromXDR(result.txXdr, Networks.TESTNET) as any;
+    expect(decoded.operations[0].asset.isNative()).toBe(true);
+    expect(decoded.signatures).toHaveLength(0);
+  });
+
+  it('attaches a memo when provided and leaves it unsigned', async () => {
+    const result = await buildUnsignedPaymentTransaction({
+      sourcePublicKey: SOURCE_PUBLIC,
+      destination: DEST_PUBLIC,
+      amount: '1',
+      asset: 'XLM',
+      assetIssuer: undefined,
+      memo: 'ext-signer-order',
+      network: 'testnet',
+      horizonUrl: HORIZON_URL,
+    });
+
+    const decoded = TransactionBuilder.fromXDR(result.txXdr, Networks.TESTNET) as any;
+    expect(decoded.memo.type).toBe('text');
+    expect(decoded.memo.value.toString()).toBe('ext-signer-order');
+    expect(decoded.signatures).toHaveLength(0);
+  });
+
+  it('throws for USDC without an issuer', async () => {
+    await expect(
+      buildUnsignedPaymentTransaction({
+        sourcePublicKey: SOURCE_PUBLIC,
+        destination: DEST_PUBLIC,
+        amount: '5.5',
+        asset: 'USDC',
+        assetIssuer: undefined,
+        network: 'testnet',
+        horizonUrl: HORIZON_URL,
+      }),
+    ).rejects.toThrow('Unsupported asset or missing issuer: USDC');
+  });
+
+  it('produces an XDR the signed builder can complete (round-trip)', async () => {
+    const unsigned = await buildUnsignedPaymentTransaction({
+      sourcePublicKey: SOURCE_PUBLIC,
+      destination: DEST_PUBLIC,
+      amount: '5.5',
+      asset: 'USDC',
+      assetIssuer: USDC_ISSUER,
+      network: 'testnet',
+      horizonUrl: HORIZON_URL,
+    });
+
+    // Simulate an external signer completing the unsigned XDR with the source key.
+    const tx = TransactionBuilder.fromXDR(unsigned.txXdr, Networks.TESTNET);
+    tx.sign(SOURCE_KEYPAIR);
+    const signedXdr = tx.toXDR();
+    const signed = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET) as any;
+    expect(signed.signatures).toHaveLength(1);
+    expect(signed.hash().toString('hex')).toBe(unsigned.txHash);
   });
 });
