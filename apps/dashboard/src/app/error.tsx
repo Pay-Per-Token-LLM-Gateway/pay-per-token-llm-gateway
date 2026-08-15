@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 export default function ErrorPage({
@@ -10,9 +11,18 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { reset: resetQueries } = useQueryErrorResetBoundary();
+
   useEffect(() => {
     console.error('Dashboard error boundary caught:', error);
   }, [error]);
+
+  const handleRetry = () => {
+    // Clear react-query's failed cache so the retry re-fetches instead of
+    // immediately re-throwing the cached error.
+    resetQueries();
+    reset();
+  };
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-6">
@@ -35,7 +45,7 @@ export default function ErrorPage({
               <p className="text-xs text-muted-foreground font-mono">Error ID: {error.digest}</p>
             )}
             <button
-              onClick={reset}
+              onClick={handleRetry}
               className="inline-flex items-center gap-2 mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
