@@ -61,4 +61,10 @@ COPY --from=builder /app/packages /app/packages
 
 EXPOSE 3000
 
+# Healthcheck: Docker probes the liveness endpoint so `docker ps` reports
+# "healthy" once the gateway is serving traffic. The /health route is excluded
+# from the global api/v1 prefix, so it is reachable directly on :3000.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://localhost:3000/health || exit 1
+
 CMD ["node", "dist/apps/gateway/main.js"]
