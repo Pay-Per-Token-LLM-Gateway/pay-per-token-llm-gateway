@@ -75,11 +75,11 @@ export default function AuditPage() {
           </div>
         ) : logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <div className="p-3 bg-gray-800 rounded-full">
-              <FileText className="w-8 h-8 text-gray-500" />
+            <div className="p-3 bg-muted rounded-full">
+              <FileText className="w-8 h-8 text-muted-foreground" />
             </div>
             <div className="text-center max-w-sm">
-              <h3 className="font-medium text-gray-300">No audit log entries yet</h3>
+              <h3 className="font-medium text-foreground">No audit log entries yet</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 Audit logs are created automatically when payments are verified, requests are
                 forwarded, and providers are registered. They&apos;ll appear here once your gateway
@@ -96,7 +96,7 @@ export default function AuditPage() {
                   key={log.id}
                   className="flex items-start gap-4 pb-4 border-b border-border last:pb-0 last:border-0"
                 >
-                  <div className="p-2 bg-gray-800 rounded-lg shrink-0">
+                  <div className="p-2 bg-muted rounded-lg shrink-0">
                     <Shield className="w-4 h-4 text-green-400" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -139,14 +139,14 @@ export default function AuditPage() {
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1 || isFetching}
-                    className="px-3 py-1 text-sm bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-muted rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setPage((p) => p + 1)}
                     disabled={page >= data.totalPages || isFetching}
-                    className="px-3 py-1 text-sm bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-muted rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
                   >
                     Next
                   </button>

@@ -175,7 +175,7 @@ export default function WebhooksPage() {
               </button>
               <button
                 onClick={handleCancel}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-2 bg-muted hover:bg-gray-700 text-foreground rounded-lg text-sm font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -186,11 +186,11 @@ export default function WebhooksPage() {
 
       <div className="card">
         <div className="flex flex-col items-center justify-center py-12 gap-4">
-          <div className="p-3 bg-gray-800 rounded-full">
-            <Globe className="w-8 h-8 text-gray-500" />
+          <div className="p-3 bg-muted rounded-full">
+            <Globe className="w-8 h-8 text-muted-foreground" />
           </div>
           <div className="text-center max-w-md">
-            <h3 className="font-medium text-gray-300">Configure your webhooks</h3>
+            <h3 className="font-medium text-foreground">Configure your webhooks</h3>
             <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
               Webhooks let your application receive real-time notifications when events happen on
               the gateway — like payments received, requests forwarded, or verification failures.

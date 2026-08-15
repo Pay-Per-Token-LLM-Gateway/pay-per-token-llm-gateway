@@ -162,7 +162,7 @@ export default function RoutesPage() {
               {routeList.map((route) => (
                 <tr
                   key={route.id}
-                  className="border-b border-border last:border-0 hover:bg-gray-800/30 transition-colors"
+                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
                 >
                   <td className="py-3 px-4 font-mono text-sm">{route.path}</td>
                   <td className="py-3 px-4 text-sm">{route.model}</td>
@@ -304,7 +304,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
         <div className="mt-4">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-800 transition-colors"
+            className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors"
           >
             Cancel
           </button>
@@ -318,7 +318,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
       <h2 className="text-lg font-semibold mb-4">Add New Route</h2>
 
       {/* Provider context badge */}
-      <div className="flex items-center gap-2 mb-4 p-3 bg-gray-900/50 rounded-lg border border-border">
+      <div className="flex items-center gap-2 mb-4 p-3 bg-muted/50 rounded-lg border border-border">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center shrink-0">
           <span className="text-white font-bold text-xs">
             {provider.name.charAt(0).toUpperCase()}
@@ -343,7 +343,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
           <input
             name="path"
             required
-            className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
+            className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
             placeholder="/v1/chat/completions"
           />
         </div>
@@ -352,7 +352,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
           <input
             name="upstreamUrl"
             required
-            className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+            className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
             placeholder="https://api.openai.com/v1/chat/completions"
           />
         </div>
@@ -362,7 +362,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
             <input
               name="model"
               required
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
               placeholder="gpt-4"
             />
           </div>
@@ -372,7 +372,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
               name="pricingModel"
               value={pricingModel}
               onChange={(e) => setPricingModel(e.target.value as 'flat' | 'per_token')}
-              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
             >
               <option value="flat">Flat</option>
               <option value="per_token">Per Token</option>
@@ -394,7 +394,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
                 <input
                   name="flatPrice"
                   required
-                  className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
                   placeholder="1000000"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -419,7 +419,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
                 <input
                   name="perTokenPrice"
                   required
-                  className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
                   placeholder="100"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -436,7 +436,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-800 transition-colors"
+            className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors"
           >
             Cancel
           </button>

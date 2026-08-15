@@ -74,7 +74,7 @@ export default function DashboardPage() {
               <p className="text-red-400">Failed to load analytics: {(error as Error).message}</p>
               <p className="text-muted-foreground text-sm mt-2">
                 Make sure the gateway is running at{' '}
-                <code className="bg-gray-800 px-1 rounded">{GATEWAY_URL}</code>
+                <code className="bg-muted px-1 rounded">{GATEWAY_URL}</code>
               </p>
             </>
           )}

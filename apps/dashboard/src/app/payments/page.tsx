@@ -96,7 +96,7 @@ export default function PaymentsPage() {
                 {payments.map((p) => (
                   <tr
                     key={p.id}
-                    className="border-b border-border last:border-0 hover:bg-gray-800/30 transition-colors"
+                    className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
@@ -159,14 +159,14 @@ export default function PaymentsPage() {
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1 || isFetching}
-                    className="px-3 py-1 text-sm bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-muted rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setPage((p) => p + 1)}
                     disabled={page >= data.totalPages || isFetching}
-                    className="px-3 py-1 text-sm bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-muted rounded disabled:opacity-50 hover:bg-gray-700 transition-colors"
                   >
                     Next
                   </button>
