@@ -58,7 +58,7 @@ export class ProvidersController {
   @ApiOperation({ summary: 'Update provider (must be owned by the caller)' })
   async update(
     @Param('id') id: string,
-    @Body() body: { name?: string; active?: boolean; webhookUrl?: string; webhookSecret?: string },
+    @Body() body: { name?: string; active?: boolean; webhookUrl?: string; webhookSecret?: string; payoutWalletAddress?: string },
     @CurrentWallet() wallet: string,
   ) {
     const parsed = providerUpdateSchema.safeParse(body);
@@ -66,6 +66,13 @@ export class ProvidersController {
       throw new BadRequestException(parsed.error.flatten());
     }
     return this.providersService.update(id, parsed.data, wallet);
+  }
+
+  @Post(':id/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Approve a provider (sets active=true). Requires PROVIDER_APPROVAL_REQUIRED=true.' })
+  async approve(@Param('id') id: string) {
+    return this.providersService.approve(id);
   }
 
   @Delete(':id')

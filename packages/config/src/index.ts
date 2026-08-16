@@ -170,6 +170,21 @@ export interface GatewayConfig {
      * comma-separated list of proxy IPs.
      */
     trustProxy: string;
+    /**
+     * When true, new providers start inactive and require an admin approve
+     * call (POST /providers/:id/approve) before they can serve traffic.
+     * Set PROVIDER_APPROVAL_REQUIRED=true to enable.
+     * @default false
+     */
+    providerApprovalRequired: boolean;
+    /**
+     * When true, a provider's payout wallet may equal its auth wallet. By
+     * default the two must differ (a typo'd payout address would otherwise
+     * burn future payouts). Set ALLOW_PAYOUT_EQUALS_AUTH_WALLET=true to
+     * explicitly opt out.
+     * @default false
+     */
+    allowPayoutEqualsAuthWallet: boolean;
   };
 }
 
@@ -361,6 +376,8 @@ export function loadConfig(): GatewayConfig {
       corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3001').split(','),
       authDevMode: process.env.AUTH_DEV_MODE === 'true',
       trustProxy: process.env.TRUST_PROXY || '1',
+      providerApprovalRequired: process.env.PROVIDER_APPROVAL_REQUIRED === 'true',
+      allowPayoutEqualsAuthWallet: process.env.ALLOW_PAYOUT_EQUALS_AUTH_WALLET === 'true',
     },
 
     contracts: {

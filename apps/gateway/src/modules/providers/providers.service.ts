@@ -1,7 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { prisma } from '@x402/database';
 import { logger } from '@x402/logger';
+import { StrKey } from '@stellar/stellar-sdk';
 import { validateWebhookUrl } from '../webhooks/webhooks.service';
+import { getConfig } from '@x402/config';
 import type { Provider } from '@x402/types';
 
 /**
@@ -75,6 +77,11 @@ export class ProvidersService {
     },
     ownerAddress: string,
   ): Promise<Provider> {
+    this.validatePayoutWallet(data.payoutWalletAddress, ownerAddress);
+
+    const config = getConfig();
+    const isActive = config.security.providerApprovalRequired ? false : true;
+
     const p = await prisma.provider.create({
       data: {
         name: data.name,
@@ -83,17 +90,18 @@ export class ProvidersService {
         webhookUrl: await this.normalizeWebhookUrl(data.webhookUrl, false),
         webhookSecret: data.webhookSecret || null,
         metadata: data.metadata || {},
+        active: isActive,
       },
     });
 
-    logger.info('Provider created', { providerId: p.id, name: p.name });
+    logger.info('Provider created', { providerId: p.id, name: p.name, active: p.active });
 
     return toProviderResponse(p);
   }
 
   async update(
     id: string,
-    data: Partial<Pick<Provider, 'name' | 'active' | 'webhookUrl' | 'webhookSecret'>>,
+    data: Partial<Pick<Provider, 'name' | 'active' | 'webhookUrl' | 'webhookSecret'>> & { payoutWalletAddress?: string },
     ownerAddress: string,
   ): Promise<Provider> {
     // Ownership check first — only the wallet that owns this provider may edit it.
@@ -102,17 +110,69 @@ export class ProvidersService {
     });
     if (!existing) throw new NotFoundException(`Provider ${id} not found`);
 
+    const updateData: Record<string, unknown> = {};
+
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.active !== undefined) updateData.active = data.active;
+    if (data.payoutWalletAddress !== undefined) {
+      this.validatePayoutWallet(data.payoutWalletAddress, ownerAddress);
+      updateData.payoutWalletAddress = data.payoutWalletAddress;
+    }
+    if (data.webhookUrl !== undefined) {
+      updateData.webhookUrl = await this.normalizeWebhookUrl(data.webhookUrl, true);
+    }
+    if (data.webhookSecret !== undefined) {
+      updateData.webhookSecret = data.webhookSecret;
+    }
+
     const p = await prisma.provider.update({
       where: { id },
-      data: {
-        name: data.name,
-        active: data.active,
-        webhookUrl: await this.normalizeWebhookUrl(data.webhookUrl, true),
-        webhookSecret: data.webhookSecret === undefined ? undefined : data.webhookSecret,
-      },
+      data: updateData,
     });
 
     return toProviderResponse(p);
+  }
+
+  /**
+   * Validate a payout wallet address:
+   * - Must be a valid Stellar public key (Ed25519) when set
+   * - Must differ from the auth wallet (unless opted out via config)
+   */
+  private validatePayoutWallet(
+    payoutWalletAddress: string | undefined,
+    ownerAddress: string,
+  ): void {
+    if (!payoutWalletAddress) return;
+
+    if (!StrKey.isValidEd25519PublicKey(payoutWalletAddress)) {
+      throw new BadRequestException(
+        `Invalid payout wallet address: "${payoutWalletAddress}" is not a valid Stellar public key`,
+      );
+    }
+
+    const config = getConfig();
+    if (!config.security.allowPayoutEqualsAuthWallet && payoutWalletAddress === ownerAddress) {
+      throw new BadRequestException(
+        'Payout wallet must differ from the authenticated wallet. Use a separate wallet for receiving payouts.',
+      );
+    }
+  }
+
+  /**
+   * Approve a provider (sets active=true). Only callable by an admin.
+   * Requires PROVIDER_APPROVAL_REQUIRED=true to be meaningful.
+   */
+  async approve(id: string): Promise<Provider> {
+    const p = await prisma.provider.findUnique({ where: { id } });
+    if (!p) throw new NotFoundException(`Provider ${id} not found`);
+
+    const updated = await prisma.provider.update({
+      where: { id },
+      data: { active: true },
+    });
+
+    logger.info('Provider approved', { providerId: id });
+    return toProviderResponse(updated);
   }
 
   /**
