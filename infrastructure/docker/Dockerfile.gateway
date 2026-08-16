@@ -59,6 +59,15 @@ COPY --from=builder /app/node_modules /app/node_modules
 # packages/database/node_modules symlinks into the pnpm store)
 COPY --from=builder /app/packages /app/packages
 
+# curl for the container HEALTHCHECK (busybox wget in alpine lacks -f exit codes
+# on some builds; curl gives a reliable non-zero exit on HTTP >= 400)
+RUN apk add --no-cache curl
+
 EXPOSE 3000
+
+# Mirrors the healthcheck in docker-compose(.mainnet).yml so the container is
+# self-describing even when run without Compose (docker run / orchestrators).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -fsS http://localhost:3000/health || exit 1
 
 CMD ["node", "dist/apps/gateway/main.js"]
