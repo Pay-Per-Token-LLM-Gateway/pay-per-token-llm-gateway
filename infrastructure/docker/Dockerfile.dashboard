@@ -47,6 +47,15 @@ COPY --from=builder /app/dist/apps/dashboard/.next/static /app/.next/static
 # Copy public assets (favicon, logo, etc.)
 COPY --from=builder /app/dist/apps/dashboard/public /app/public
 
+# curl for the container HEALTHCHECK (busybox wget in alpine lacks -f exit codes
+# on some builds; curl gives a reliable non-zero exit on HTTP >= 400)
+RUN apk add --no-cache curl
+
 EXPOSE 3001
+
+# Mirrors the healthcheck in docker-compose(.mainnet).yml so the container is
+# self-describing even when run without Compose (docker run / orchestrators).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -fsS http://localhost:3001 || exit 1
 
 CMD ["node", "server.js"]
