@@ -1,15 +1,11 @@
 'use client';
 
-import { Plus, Trash2, Power, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Power, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
-import {
-  useProvider,
-  useRoutes,
-  useCreateRoute,
-  useUpdateRoute,
-  useDeleteRoute,
-} from '@/lib/hooks';
+import { useProvider, useRoutes, useUpdateRoute, useDeleteRoute } from '@/lib/hooks';
 import type { RouteResponse } from '@/lib/api';
+import { ErrorState } from '@/components/shared/ErrorState';
+import { TableSkeleton, CardSkeleton } from '@/components/shared/Skeleton';
 
 export default function RoutesPage() {
   const [showAdd, setShowAdd] = useState(false);
@@ -29,8 +25,6 @@ export default function RoutesPage() {
     deleteMutation.mutate(id);
   };
 
-  const isUnauthenticated = (error as Error)?.message?.includes('401');
-
   if (isError) {
     return (
       <div className="space-y-6">
@@ -40,46 +34,7 @@ export default function RoutesPage() {
             <p className="text-muted-foreground mt-1">Manage protected LLM endpoints and pricing</p>
           </div>
         </div>
-        <div
-          className={`card ${isUnauthenticated ? 'border-yellow-800/30 bg-yellow-950/10' : 'border-red-800/30 bg-red-950/10'}`}
-        >
-          <div className="flex items-start gap-3">
-            <div
-              className={`p-2 rounded-lg shrink-0 ${isUnauthenticated ? 'bg-yellow-900/20' : 'bg-red-900/20'}`}
-            >
-              <AlertTriangle
-                className={`w-5 h-5 ${isUnauthenticated ? 'text-yellow-400' : 'text-red-400'}`}
-              />
-            </div>
-            <div className="flex-1">
-              <h3
-                className={`font-medium ${isUnauthenticated ? 'text-yellow-400' : 'text-red-400'}`}
-              >
-                {isUnauthenticated ? 'Authentication required' : 'Failed to load routes'}
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                {isUnauthenticated
-                  ? 'Your session has expired or you are not logged in. Please connect your wallet to continue.'
-                  : (error as Error).message}
-              </p>
-              {isUnauthenticated ? (
-                <a
-                  href="/login"
-                  className="inline-flex items-center gap-1.5 mt-2 text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Connect Wallet
-                </a>
-              ) : (
-                <button
-                  onClick={() => refetch()}
-                  className="inline-flex items-center gap-1.5 mt-2 text-sm text-green-400 hover:text-green-300 transition-colors"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" /> Retry
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <ErrorState title="Failed to load routes" error={error} onRetry={() => refetch()} />
       </div>
     );
   }
@@ -105,19 +60,7 @@ export default function RoutesPage() {
       </div>
 
       {/* Mutation errors */}
-      {mutationError && (
-        <div className="card border-red-800/30 bg-red-950/10">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-900/20 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-medium text-red-400">Operation failed</h3>
-              <p className="text-sm text-muted-foreground mt-1">{mutationError}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {mutationError && <ErrorState title="Operation failed" error={mutationError} />}
 
       {/* Add Route Form */}
       {showAdd && (
@@ -126,10 +69,7 @@ export default function RoutesPage() {
 
       <div className="card overflow-hidden">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading routes...</p>
-          </div>
+          <TableSkeleton rows={5} cols={6} />
         ) : routeList.length === 0 ? (
           <p className="text-muted-foreground text-sm py-8 text-center">
             No routes configured. Add your first route.
@@ -212,7 +152,12 @@ export default function RoutesPage() {
 }
 
 function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
-  const { data: provider, isLoading: providerLoading, isError: providerError } = useProvider();
+  const {
+    data: provider,
+    isLoading: providerLoading,
+    isError: providerError,
+    refetch,
+  } = useProvider();
   const createMutation = useCreateRoute();
   const [formError, setFormError] = useState<string | null>(null);
   const [pricingModel, setPricingModel] = useState<'flat' | 'per_token'>('flat');
@@ -248,20 +193,17 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
   };
 
   if (providerLoading) {
-    return (
-      <div className="card">
-        <div className="flex items-center justify-center py-4 gap-3">
-          <Loader2 className="w-5 h-5 text-green-400 animate-spin" />
-          <p className="text-sm text-muted-foreground">Loading provider info...</p>
-        </div>
-      </div>
-    );
+    return <CardSkeleton />;
   }
 
   if (providerError) {
     return (
       <div className="card">
-        <p className="text-red-400 text-sm">Failed to load provider.</p>
+        <ErrorState
+          title="Failed to load provider"
+          error={providerError}
+          onRetry={() => refetch()}
+        />
         <button onClick={onCancel} className="mt-2 text-sm text-green-400 hover:underline">
           Go back
         </button>
@@ -274,19 +216,7 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
       <div className="card">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-yellow-900/20 rounded-lg shrink-0 mt-0.5">
-            <svg
-              className="w-5 h-5 text-yellow-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-              />
-            </svg>
+            <AlertTriangle className="w-5 h-5 text-yellow-400" />
           </div>
           <div>
             <h3 className="font-medium text-yellow-400">No Provider Configured</h3>
@@ -333,10 +263,10 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
         <span className="badge badge-green text-xs ml-auto shrink-0">Active</span>
       </div>
 
-      {formError && <p className="text-red-400 text-sm mb-3">{formError}</p>}
-      {createMutation.isError && !formError && (
-        <p className="text-red-400 text-sm mb-3">{(createMutation.error as Error).message}</p>
+      {(formError || createMutation.isError) && (
+        <ErrorState title="Form Error" error={formError || createMutation.error} className="mb-4" />
       )}
+
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label className="block text-sm mb-1">Path</label>
@@ -380,72 +310,46 @@ function AddRouteForm({ onCreated, onCancel }: { onCreated: () => void; onCancel
           </div>
         </div>
 
-        {/* Price fields — show/hide based on pricing model */}
-        <div className="space-y-3 transition-all duration-200">
-          {pricingModel === 'flat' && (
-            <div>
-              <label className="block text-sm mb-1">
-                Flat Price{' '}
-                <span className="text-xs text-muted-foreground">
-                  (smallest unit, e.g. 1000000 = 0.1 USDC)
-                </span>
-              </label>
-              <div className="relative">
-                <input
-                  name="flatPrice"
-                  required
-                  className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                  placeholder="1000000"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  stroops
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Charged once per request regardless of token usage
-              </p>
-            </div>
-          )}
+        {pricingModel === 'flat' ? (
+          <div>
+            <label className="block text-sm mb-1">Flat Price (USDC)</label>
+            <input
+              name="flatPrice"
+              type="number"
+              step="0.000001"
+              required
+              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              placeholder="1.0"
+            />
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm mb-1">Price Per 1k Tokens (USDC)</label>
+            <input
+              name="perTokenPrice"
+              type="number"
+              step="0.000001"
+              required
+              className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              placeholder="0.01"
+            />
+          </div>
+        )}
 
-          {pricingModel === 'per_token' && (
-            <div>
-              <label className="block text-sm mb-1">
-                Per-Token Price{' '}
-                <span className="text-xs text-muted-foreground">
-                  (smallest unit, e.g. 100 = 0.00001 USDC per token)
-                </span>
-              </label>
-              <div className="relative">
-                <input
-                  name="perTokenPrice"
-                  required
-                  className="w-full px-3 py-2 bg-gray-800 border border-border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500/50"
-                  placeholder="100"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  stroops/token
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Charged per token — total cost = tokens used × this rate
-              </p>
-            </div>
-          )}
-        </div>
-        <div className="flex gap-2 justify-end">
+        <div className="flex gap-3 pt-2">
+          <button
+            type="submit"
+            disabled={createMutation.isPending}
+            className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            {createMutation.isPending ? 'Adding...' : 'Add Route'}
+          </button>
           <button
             type="button"
             onClick={onCancel}
             className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-800 transition-colors"
           >
             Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={createMutation.isPending}
-            className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
-          >
-            {createMutation.isPending ? 'Saving...' : 'Create Route'}
           </button>
         </div>
       </form>

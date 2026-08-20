@@ -20,6 +20,8 @@ import {
 } from 'recharts';
 import { useAnalytics, useProvider, useTimeSeries } from '@/lib/hooks';
 import { format } from 'date-fns';
+import { ErrorState } from '@/components/shared/ErrorState';
+import { Skeleton } from '@/components/shared/Skeleton';
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3000';
 
@@ -34,7 +36,7 @@ function formatStroops(stroops: string | undefined): string {
 
 export default function DashboardPage() {
   const { data: provider } = useProvider();
-  const { data: stats, isLoading, error } = useAnalytics(provider?.id);
+  const { data: stats, isLoading, error, refetch } = useAnalytics(provider?.id);
   const { data: timeSeriesData } = useTimeSeries(provider?.id, 60, 24);
 
   // Build chart data from the time series API only — no fake/demo data.
@@ -48,37 +50,19 @@ export default function DashboardPage() {
       : [];
 
   if (error) {
-    const isUnauthenticated = (error as Error).message?.includes('401');
     return (
       <div className="space-y-8">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1">Overview of your x402 LLM gateway</p>
         </div>
-        <div className="card">
-          {isUnauthenticated ? (
-            <>
-              <p className="text-yellow-400">Authentication required</p>
-              <p className="text-muted-foreground text-sm mt-2">
-                Your session has expired or you are not logged in.
-              </p>
-              <a
-                href="/login"
-                className="inline-flex items-center gap-2 mt-3 text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Connect Wallet
-              </a>
-            </>
-          ) : (
-            <>
-              <p className="text-red-400">Failed to load analytics: {(error as Error).message}</p>
-              <p className="text-muted-foreground text-sm mt-2">
-                Make sure the gateway is running at{' '}
-                <code className="bg-gray-800 px-1 rounded">{GATEWAY_URL}</code>
-              </p>
-            </>
-          )}
-        </div>
+        <ErrorState title="Failed to load analytics" error={error} onRetry={() => refetch()} />
+        {!error.toString().includes('401') && (
+          <p className="text-muted-foreground text-sm mt-2 text-center">
+            Make sure the gateway is running at{' '}
+            <code className="bg-gray-800 px-1 rounded">{GATEWAY_URL}</code>
+          </p>
+        )}
       </div>
     );
   }
@@ -100,7 +84,11 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="stat-value text-green-400">
-            {isLoading ? '...' : `${formatStroops(stats?.totalRevenue)} USDC`}
+            {isLoading ? (
+              <Skeleton className="h-8 w-24" />
+            ) : (
+              `${formatStroops(stats?.totalRevenue)} USDC`
+            )}
           </div>
           <div className="flex items-center gap-1 mt-2 text-xs text-green-400">
             <ArrowUpRight className="w-3 h-3" /> Live on-chain
@@ -115,7 +103,11 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="stat-value">
-            {isLoading ? '...' : (stats?.paidRequests ?? 0).toLocaleString()}
+            {isLoading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              (stats?.paidRequests ?? 0).toLocaleString()
+            )}
           </div>
           <div className="flex items-center gap-1 mt-2 text-xs text-blue-400">
             <ArrowUpRight className="w-3 h-3" /> {stats?.successRate.toFixed(1)}% success rate
@@ -130,7 +122,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="stat-value">
-            {isLoading ? '...' : `${stats?.averageResponseTime ?? 0}ms`}
+            {isLoading ? <Skeleton className="h-8 w-16" /> : `${stats?.averageResponseTime ?? 0}ms`}
           </div>
           <div className="flex items-center gap-1 mt-2 text-xs text-purple-400">
             <TrendingUp className="w-3 h-3" /> Per-request latency
@@ -145,7 +137,11 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="stat-value">
-            {isLoading ? '...' : (stats?.unpaidRequests ?? 0).toLocaleString()}
+            {isLoading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              (stats?.unpaidRequests ?? 0).toLocaleString()
+            )}
           </div>
           <div className="flex items-center gap-1 mt-2 text-xs text-yellow-400">
             <ArrowDownRight className="w-3 h-3" /> Awaiting payment
@@ -157,37 +153,41 @@ export default function DashboardPage() {
       <div className="card">
         <h2 className="text-lg font-semibold mb-4">Request Volume</h2>
         <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
-              <YAxis stroke="#6b7280" fontSize={12} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#111827',
-                  border: '1px solid #1f2937',
-                  borderRadius: '8px',
-                  color: '#f9fafb',
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="paid"
-                stroke="#22c55e"
-                strokeWidth={2}
-                dot={{ fill: '#22c55e', r: 4 }}
-                name="Paid"
-              />
-              <Line
-                type="monotone"
-                dataKey="unpaid"
-                stroke="#eab308"
-                strokeWidth={2}
-                dot={{ fill: '#eab308', r: 4 }}
-                name="Unpaid"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {isLoading ? (
+            <Skeleton className="w-full h-full" />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+                <YAxis stroke="#6b7280" fontSize={12} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#111827',
+                    border: '1px solid #1f2937',
+                    borderRadius: '8px',
+                    color: '#f9fafb',
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="paid"
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                  dot={{ fill: '#22c55e', r: 4 }}
+                  name="Paid"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="unpaid"
+                  stroke="#eab308"
+                  strokeWidth={2}
+                  dot={{ fill: '#eab308', r: 4 }}
+                  name="Unpaid"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
@@ -200,7 +200,11 @@ export default function DashboardPage() {
           </h2>
           <div className="space-y-3">
             {isLoading ? (
-              <p className="text-muted-foreground text-sm py-4 text-center">Loading...</p>
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
             ) : (
               (stats?.topCallers?.slice(0, 5).map((caller, i) => (
                 <div
@@ -237,7 +241,11 @@ export default function DashboardPage() {
           </h2>
           <div className="space-y-3">
             {isLoading ? (
-              <p className="text-muted-foreground text-sm py-4 text-center">Loading...</p>
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
             ) : (
               (stats?.topRoutes?.slice(0, 5).map((route, i) => (
                 <div

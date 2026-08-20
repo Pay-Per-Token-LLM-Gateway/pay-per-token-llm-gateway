@@ -1,13 +1,15 @@
 'use client';
 
-import { ExternalLink, Copy, Check, Loader2 } from 'lucide-react';
+import { ExternalLink, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { usePayments } from '@/lib/hooks';
+import { ErrorState } from '@/components/shared/ErrorState';
+import { TableSkeleton } from '@/components/shared/Skeleton';
 
 export default function PaymentsPage() {
   const [page, setPage] = useState(1);
   const [copied, setCopied] = useState<string | null>(null);
-  const { data, isLoading, isError, error, isFetching } = usePayments({ page, limit: 20 });
+  const { data, isLoading, isError, error, isFetching, refetch } = usePayments({ page, limit: 20 });
 
   const copyTxHash = (hash: string | null) => {
     if (!hash) return;
@@ -19,7 +21,6 @@ export default function PaymentsPage() {
   };
 
   if (isError) {
-    const isUnauthenticated = (error as Error).message?.includes('401');
     return (
       <div className="space-y-6">
         <div>
@@ -28,24 +29,7 @@ export default function PaymentsPage() {
             All payment transactions processed by the gateway
           </p>
         </div>
-        <div className="card">
-          {isUnauthenticated ? (
-            <>
-              <p className="text-yellow-400">Authentication required</p>
-              <p className="text-muted-foreground text-sm mt-2">
-                Your session has expired or you are not logged in.
-              </p>
-              <a
-                href="/login"
-                className="inline-flex items-center gap-2 mt-3 text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Connect Wallet
-              </a>
-            </>
-          ) : (
-            <p className="text-red-400">Failed to load: {(error as Error).message}</p>
-          )}
-        </div>
+        <ErrorState title="Failed to load payments" error={error} onRetry={() => refetch()} />
       </div>
     );
   }
@@ -63,10 +47,7 @@ export default function PaymentsPage() {
 
       <div className="card overflow-hidden">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading payments...</p>
-          </div>
+          <TableSkeleton rows={10} cols={5} />
         ) : payments.length === 0 ? (
           <p className="text-muted-foreground text-sm py-8 text-center">No payments yet</p>
         ) : (
